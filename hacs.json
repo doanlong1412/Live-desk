@@ -1,0 +1,7 @@
+{
+  "name": "LiveDesk",
+  "description": "Live2D anime waifu cho Home Assistant dashboard — bubble thông minh, TTS, mini mode ghim toàn view",
+  "render_readme": true,
+  "homeassistant": "2023.1.0",
+  "filename": "livedesk.js"
+}
