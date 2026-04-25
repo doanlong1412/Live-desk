@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get tag version
+        id: tag
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: LiveDesk ${{ steps.tag.outputs.version }}
+          body: |
+            ## LiveDesk ${{ steps.tag.outputs.version }}
+
+            ### Cài đặt qua HACS
+            Xem hướng dẫn trong [README](https://github.com/${{ github.repository }}#-cài-đặt).
+
+            ### Cài đặt thủ công
+            1. Tải file `livedesk.js` từ Assets bên dưới
+            2. Copy vào `/config/www/livedesk.js`
+            3. Thêm resource: `/local/livedesk.js` (JavaScript module)
+            4. Hard reload trình duyệt (`Ctrl+Shift+R`)
+          files: livedesk.js
+          draft: false
+          prerelease: false
