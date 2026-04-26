@@ -1,5 +1,5 @@
 /**
- * livedesk.js  v1.0.1
+ * livedesk.js  v1.0.2
  * ─ Nền trong suốt, blur nhẹ, bo tròn
  * ─ Xóa sensor bar header
  * ─ Toolbar glass 3D nổi
@@ -76,8 +76,14 @@ const MODELS = [
   // soundBase: thư mục gốc chứa sound (tự động lấy từ path model nếu không set)
   { name:'Neptune 💜', path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/Neptune/model.json',
     greeting:'Nep Nep đây! 💜',      hasSound:false },
+  { name:'Neptune Sailor ⚓', path:'https://cdn.jsdelivr.net/gh/zenghongtu/live2d-model-assets@master/assets/HyperdimensionNeptunia/nepmaid/model.json',
+    greeting:'Nep Nep thủy thủ đây~ ⚓ Bộ đồ sailor có đẹp không?', hasSound:false },
+  { name:'Neptune Santa 🎅', path:'https://cdn.jsdelivr.net/gh/zenghongtu/live2d-model-assets@master/assets/HyperdimensionNeptunia/neptune_santa/model.json',
+    greeting:'Ho ho ho~! Nep Santa mang quà tới rồi! 🎁', hasSound:false },
   { name:'Vert 💚',    path:'https://cdn.jsdelivr.net/gh/fghrsh/live2d_api@master/model/HyperdimensionNeptunia/vert_normal/index.json',
     greeting:'Xin chào! Mình là Vert đây~ 💚', hasSound:false },
+  { name:'Vert Classic 🌿', path:'https://cdn.jsdelivr.net/gh/zenghongtu/live2d-model-assets@master/assets/HyperdimensionNeptunia/vert_classic/model.json',
+    greeting:'Vert classic outfit, thích hơn không? 🌿', hasSound:false },
   { name:'Koharu 🌸',  path:'https://cdn.jsdelivr.net/npm/live2d-widget-model-koharu@1.0.5/assets/koharu.model.json',
     greeting:'Koharu xin chào! ✿',   hasSound:false },
   { name:'Shizuku ❄️', path:'https://cdn.jsdelivr.net/npm/live2d-widget-model-shizuku@1.0.5/assets/shizuku.model.json',
@@ -89,7 +95,9 @@ const MODELS = [
     greeting:'Uni xin chào! Đừng làm phiền chị Noire của mình nha~ 🩷', hasSound:false,
     vOffset:-80, scale:0.65 },
   { name:'Blanc 📖',   path:'https://cdn.jsdelivr.net/gh/fghrsh/live2d_api@master/model/HyperdimensionNeptunia/blanc_swimwear/index.json',
-    greeting:'...Xin chào. Mình là Blanc. 📖', hasSound:false }
+    greeting:'...Xin chào. Mình là Blanc. 📖', hasSound:false },
+  { name:'Tia 🧪',      path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/tia/model.json',
+    greeting:'Xin chào! Tia đây~ Cần mua potion không? 🧪', hasSound:false },
 ];
 
 const SENSOR_REACTIONS = {
@@ -982,7 +990,27 @@ class LiveDesk extends HTMLElement {
         `${name}, nếu có gì cần Blanc giúp cứ nói. Blanc không bận lắm đâu... 📖`,
         `...${name} có nhớ uống nước không? Blanc hỏi thôi. Không phải lo đâu. 📖`,
       ],
+      'Tia 🧪': [
+        `${name} ơi, Tia có loại potion đặc biệt nè~ uống vào thông minh hơn liền! 🧪`,
+        `Tia đang nghiên cứu công thức mới á~ ${name} thử không? ✨`,
+        `Nhà thông minh thật sự, Tia cũng muốn có một căn như vậy~ 💜`,
+        `${name} ơi, Tia thấy cảm biến nhà mình xịn lắm đó! 🏠`,
+        `Tia sẽ pha cho ${name} ly potion hôm nay nha~ 🌸`,
+        `Pio bảo Tia phải chào hỏi lịch sự hơn... Xin chào ${name}! 😊`,
+        `Potion của Tia là số một! ${name} hãy tin tưởng Tia nhé~ 🧪`,
+        `Tia đang canh nhà cho ${name} đây, đừng lo lắng gì hết nha~ 🛡️`,
+      ],
     };
+    byModel['Tia 🧪'] = [
+        `${name} ơi, Tia có loại potion đặc biệt nè~ uống vào thông minh hơn liền! 🧪`,
+        `Tia đang nghiên cứu công thức mới á~ ${name} thử không? ✨`,
+        `Nhà thông minh thật sự, Tia cũng muốn có một căn như vậy~ 💜`,
+        `${name} ơi, Tia thấy cảm biến nhà mình xịn lắm đó! 🏠`,
+        `Tia sẽ pha cho ${name} ly potion hôm nay nha~ 🌸`,
+        `Pio bảo Tia phải chào hỏi lịch sự hơn... Xin chào ${name}! 😊`,
+        `Potion của Tia là số một! ${name} hãy tin tưởng Tia nhé~ 🧪`,
+        `Tia đang canh nhà cho ${name} đây, đừng lo lắng gì hết nha~ 🛡️`,
+      ];
     // Trả về quotes của nhân vật hiện tại, fallback về Neptune nếu không có
     return byModel[mn] || byModel['Neptune 💜'] || [];
   }
@@ -1923,12 +1951,16 @@ class LiveDeskEditor extends HTMLElement {
   _getCharNickname(modelName) {
     const map = {
       'Neptune 💜': 'Nep',
+      'Neptune Sailor ⚓': 'Nep',
+      'Neptune Santa 🎅': 'Nep',
       'Vert 💚':    'Vert',
+      'Vert Classic 🌿': 'Vert',
       'Koharu 🌸':  'Koharu',
       'Shizuku ❄️': 'Shizuku',
       'Noire 🖤':   'Noire',
       'Uni 🩷':     'Uni',
       'Blanc 📖':   'Blanc',
+      'Tia 🧪':      'Tia',
     };
     return map[modelName] || 'Nep';
   }
@@ -1947,7 +1979,7 @@ class LiveDeskEditor extends HTMLElement {
     const entCount = Math.max(1, Math.min(12, parseInt(cfg._ent_count || entities.length || 3)));
 
     // Current model nickname for TTS hint
-    const curModel = MODELS[defaultModelIdx] || MODELS[0];
+    const curModel = MODELS[0];
     const curNick  = this._getCharNickname(curModel.name);
 
     this.shadowRoot.innerHTML = `<style>
@@ -1994,7 +2026,7 @@ class LiveDeskEditor extends HTMLElement {
 
     <!-- HEADER -->
     <div style="text-align:center;padding:12px 14px 4px;font-size:11px;color:var(--secondary-text-color);line-height:1.7;">
-      💜 <strong style="color:var(--primary-color)">LiveDesk v1.0.1</strong> — Live2D Waifu Dashboard<br/>
+      💜 <strong style="color:var(--primary-color)">LiveDesk v1.0.2</strong> — Live2D Waifu Dashboard<br/>
       Designed by <strong style="color:var(--primary-color)">@doanlong1412</strong> from 🇻🇳 Vietnam
     </div>
 
