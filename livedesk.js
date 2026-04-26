@@ -1,5 +1,5 @@
 /**
- * livedesk.js  v1.0
+ * livedesk.js  v1.0.1
  * ─ Nền trong suốt, blur nhẹ, bo tròn
  * ─ Xóa sensor bar header
  * ─ Toolbar glass 3D nổi
@@ -356,8 +356,8 @@ const CARD_TEMPLATE = `
 
   /* Card: trong suốt, bo tròn, blur=1 */
   .nep-card{
-    background:rgba(255,255,255,0.08);
-    backdrop-filter:blur(1px);-webkit-backdrop-filter:blur(1px);
+    background:transparent;
+    backdrop-filter:none;-webkit-backdrop-filter:none;
     border-radius:22px;
     border:1px solid rgba(255,255,255,0.18);
     overflow:hidden;position:relative;
@@ -472,7 +472,7 @@ const CARD_TEMPLATE = `
     <button class="nep-btn" id="btnSwitch">🔄 Đổi</button>
     <button class="nep-btn" id="btnQuote">💬 Nói</button>
     <button class="nep-btn" id="btnSound">🔊 TTS</button>
-    <button class="nep-btn" id="btnSensors">📊 Update</button>
+    <button class="nep-btn" id="btnSensors">🔄 Reload</button>
     <button class="nep-btn green" id="btnMinimize">📌 Mini</button>
     <button class="nep-btn" id="btnPin">📍 Ghim</button>
     <button class="nep-btn red" id="btnHide">❌ Ẩn</button>
@@ -526,13 +526,18 @@ class LiveDesk extends HTMLElement {
     const w = this._config.width  || 400; // fix: dùng config thay vì hardcode
     this._shadow.querySelector('.waifu-area').style.height = h + 'px';
 
-    // Apply card_blur từ config (editor slider → card_blur)
-    if (this._config.card_blur !== undefined) {
-      const _b = this._config.card_blur + 'px';
+    // Apply card_blur — LUÔN chạy, inline style thắng CSS class
+    {
+      const _blur = (this._config.card_blur !== undefined) ? Number(this._config.card_blur) : 0;
       const _card = this._shadow.querySelector('.nep-card');
       if (_card) {
-        _card.style.backdropFilter = 'blur(' + _b + ')';
-        _card.style.webkitBackdropFilter = 'blur(' + _b + ')';
+        const _bgAlpha     = +(_blur / 30 * 0.18).toFixed(4);
+        const _borderAlpha = +(_blur / 30 * 0.18).toFixed(4);
+        _card.style.setProperty('backdropFilter',       'blur(' + _blur + 'px)');
+        _card.style.setProperty('-webkit-backdrop-filter', 'blur(' + _blur + 'px)');
+        _card.style.setProperty('backdrop-filter',      'blur(' + _blur + 'px)');
+        _card.style.background = 'rgba(255,255,255,' + _bgAlpha + ')';
+        _card.style.border     = '1px solid rgba(255,255,255,' + _borderAlpha + ')';
       }
     }
 
@@ -541,19 +546,32 @@ class LiveDesk extends HTMLElement {
     frame.setAttribute('height', h);
     // Start with natural size; auto-clip fires after model renders via postMessage
     frame.style.cssText = 'width:100%;height:' + h + 'px;border:none;background:transparent;display:block;z-index:2;transition:margin-top 0.3s ease;';
-
-    // fix: nếu đang floating hoặc pinned thì ẩn card và KHÔNG load frame ở đây
-    // connectedCallback sẽ gọi _rebuildFloat/_rebuildPin sau — tránh 2 lần _loadIntoFrame song song gây trắng màn
-    if (this._floating || this._pinned) {
-      const card = this._shadow.querySelector('.nep-card');
-      if (card) card.style.display = 'none';
-    } else {
-      this._loadIntoFrame(frame, this._modelIdx, w, h, false);
-    }
+    this._loadIntoFrame(frame, this._modelIdx, w, h, false);
 
     this._shadow.getElementById('btnSwitch').onclick   = () => this._switchModel();
     this._shadow.getElementById('btnQuote').onclick    = () => { this._nepQuote(); };
-    this._shadow.getElementById('btnSensors').onclick  = () => this._updateSensors(true);
+    this._shadow.getElementById('btnSensors').onclick  = () => {
+      // Reload iframe nhân vật (fix blob URL bị mất sau navigate)
+      const frame = this._shadow.getElementById('nep-l2d-frame');
+      const h = this._config.height || 440;
+      const w = this._config.width  || 400;
+      if (frame) this._loadIntoFrame(frame, this._modelIdx, w, h, false);
+      // Reload thêm float iframe nếu đang nổi
+      if (this._floating) {
+        const ff = document.getElementById('nep-float-iframe');
+        const fh = this._config.float_height || 650;
+        const fw = this._config.float_width  || 400;
+        if (ff) this._loadIntoFrame(ff, this._modelIdx, fw, fh, true);
+      }
+      // Reload thêm pin iframe nếu đang ghim
+      if (this._pinned) {
+        const fp = document.getElementById('nep-pin-iframe');
+        const fh = this._config.float_height || 650;
+        const fw = this._config.float_width  || 400;
+        if (fp) this._loadIntoFrame(fp, this._modelIdx, fw, fh, true);
+      }
+      this._pushStatus(`${this._cn()} reload xong rồi nha~ 🔄`, true);
+    };
     this._shadow.getElementById('btnMinimize').onclick = () => this._enterFloating();
     const btnPin = this._shadow.getElementById('btnPin');
     btnPin.onclick = () => this._togglePin();
@@ -579,12 +597,10 @@ class LiveDesk extends HTMLElement {
     this._idleInterval = setInterval(() => this._idleQuote(), 45000);
     this._startStatusRotation();
     setTimeout(() => this._greet(), 3000);
-    // fix: chỉ restore từ localStorage lần đầu tiên (this._floating/_pinned chưa set)
-    // Khi navigate về, connectedCallback đã lo rebuild — không gọi lại ở đây
-    if (!this._floating && !this._pinned) {
-      try { if (localStorage.getItem('nep_floating') === '1') setTimeout(() => this._enterFloating(), 500); } catch(e){}
-      try { if (localStorage.getItem('nep_pinned')   === '1') setTimeout(() => this._enterPin(),      600); } catch(e){}
-    }
+    // fix: restore trạng thái mini sau reload — chạy sớm hơn greet để overlay có sẵn
+    try { if (localStorage.getItem('nep_floating') === '1') setTimeout(() => this._enterFloating(), 500); } catch(e){}
+    // fix: restore trạng thái ghim sau reload
+    try { if (localStorage.getItem('nep_pinned') === '1') setTimeout(() => this._enterPin(), 600); } catch(e){}
 
     // Listen for auto-clip message from iframe canvas detection
     if (!this._msgListener) {
@@ -605,133 +621,45 @@ class LiveDesk extends HTMLElement {
       };
       window.addEventListener('message', this._msgListener);
     }
-
-    // ── IntersectionObserver: reload iframe khi card visible trở lại ──
-    // HA không destroy element khi chuyển tab — chỉ ẩn DOM.
-    // Iframe content bị trình duyệt unload khi bị ẩn → cần reload khi hiện lại.
-    if (this._iframeObserver) this._iframeObserver.disconnect();
-    this._iframeObserver = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        // Card vừa visible trở lại — kiểm tra iframe còn sống không
-        if (this._floating || this._pinned) continue; // float/pin tự quản lý
-        const fr = this._shadow.getElementById('nep-l2d-frame');
-        if (!fr) continue;
-        try {
-          // Nếu iframe body trống hoặc không có canvas → content đã bị unload
-          const doc = fr.contentDocument;
-          const needsReload = !doc || !doc.body || !doc.getElementById('live2d');
-          if (needsReload) {
-            const h = this._config.height || 440;
-            const w = this._config.width  || 400;
-            this._loadIntoFrame(fr, this._modelIdx, w, h, false);
-          }
-        } catch(e) {
-          // cross-origin guard — nếu không đọc được doc thì reload luôn
-          const h = this._config.height || 440;
-          const w = this._config.width  || 400;
-          this._loadIntoFrame(fr, this._modelIdx, w, h, false);
-        }
-      }
-    }, { threshold: 0.1 });
-    this._iframeObserver.observe(this);
   }
 
   // ── Load model vào iframe ────────────────────────────────────
-  _loadIntoFrame(frame, idx, w, h, isFloat, _retryCount) {
-    _retryCount = _retryCount || 0;
-    const MAX_RETRIES  = 3;
-    const LOAD_TIMEOUT = 3000; // ms — CDN chậm chờ tối đa 3s
-
-    const m   = MODELS[idx];
-    const lbl = this._shadow ? this._shadow.getElementById('modelLabel') : null;
+  _loadIntoFrame(frame, idx, w, h, isFloat) {
+    const m = MODELS[idx];
+    const lbl = this._shadow.getElementById('modelLabel');
     if (lbl) lbl.textContent = m.name;
 
     const html = makeL2dHtml(m.path, w, h, m.vOffset, m.scale);
     const blob = new Blob([html], {type:'text/html'});
     const url  = URL.createObjectURL(blob);
 
-    // ── Timeout watchdog: L2Dwidget không render kịp → retry ──
-    let loaded = false;
-    const timeoutId = setTimeout(() => {
-      if (loaded) return;
+    frame.onload = () => {
       URL.revokeObjectURL(url);
-      if (_retryCount < MAX_RETRIES) {
-        const retryMsg = `${this._cn()} đang kết nối lại CDN... thử lần ${_retryCount + 1}/${MAX_RETRIES} 🔄`;
-        if (isFloat) { this._floatTip && this._floatTip(retryMsg, 3500); }
-        else         { this._pushStatus && this._pushStatus(retryMsg, true); }
-        setTimeout(() => this._loadIntoFrame(frame, idx, w, h, isFloat, _retryCount + 1), 1500);
-      } else {
-        // Hết retry — hiện overlay lỗi thân thiện thay vì icon vỡ
-        const failMsg = `${this._cn()} không tải được hình ảnh rồi... 😢 Mạng yếu hay CDN lỗi á. Nhấn 🔄 Đổi hoặc reload trang thử nha!`;
-        if (isFloat) { this._floatTip && this._floatTip(failMsg, 8000); }
-        else         { this._pushStatus && this._pushStatus(failMsg, true); }
-        try {
-          frame.srcdoc = `<html><body style="margin:0;background:transparent;display:flex;align-items:center;justify-content:center;height:${h}px;font-family:sans-serif;color:rgba(200,180,255,0.85);font-size:13px;text-align:center;flex-direction:column;gap:10px;">
-            <div style="font-size:40px">😢</div>
-            <div style="font-weight:600">${m.name}</div>
-            <div style="font-size:11px;opacity:0.65;line-height:1.6">CDN timeout<br>Nhấn 🔄 Đổi để thử nhân vật khác</div>
-          </body></html>`;
-        } catch(e){}
-      }
-    }, LOAD_TIMEOUT);
-
-    // ── Gắn event listeners vào iframe doc ──────────────────────
-    const _attachListeners = () => {
+      // Tải danh sách sound ngay khi model load xong
       this._loadModelSounds(idx);
       try {
         const doc = frame.contentDocument;
-        if (!doc) return;
         doc.addEventListener('click', () => {
-          const tips = [
-            `Đừng chọc ${this._cn()} nha! ${this._cn()} giận rồi đó! (≧∇≦)`,
+          const tips = [`Đừng chọc ${this._cn()} nha! ${this._cn()} giận rồi đó! (≧∇≦)`,
             `Ủa, sờ ${this._cn()} hồi nào vậy? (ó﹏ò｡)`,
-            'Hí hí~ Nhột lắm á! 💜',
-            `Cù lét! ${this._cn()} hổng chịu đâu nha! >///<`,
+            'Hí hí~ Nhột lắm á! 💜',`Cù lét! ${this._cn()} hổng chịu đâu nha! >///<`,
             `${this._cn()} ${this._cn()}~ Thương ${this._cn()} hông? 💜`,
             `Ôi trời ơi, chọc ${this._cn()} hoài vậy ta! 😳`,
-            `${this._cn()} mắc cỡ quá hà~ >///<`
-          ];
+            `${this._cn()} mắc cỡ quá hà~ >///<`];
           const msg = this._rand(tips);
           if (isFloat) this._floatTip(msg, 3000);
           else         this._pushStatus(msg, true);
+          // Phát âm thanh khi click nhân vật
           this._playAudio(msg.replace(/[^\p{L}\p{N}\s]/gu, ''));
         });
         doc.addEventListener('dblclick', () => { if (this._floating) this._exitFloating(); });
       } catch(e){}
     };
-
-    frame.onload = () => {
-      loaded = true;
-      clearTimeout(timeoutId);
-      URL.revokeObjectURL(url);
-      // Script CDN từ jsdelivr có thể chưa xong khi onload fire
-      // → thử gắn ngay, nếu không được thì fallback sau 3s
-      try {
-        const win = frame.contentWindow;
-        if (win && typeof win.L2Dwidget !== 'undefined') {
-          _attachListeners();
-        } else {
-          setTimeout(_attachListeners, 3000);
-        }
-      } catch(e) {
-        setTimeout(_attachListeners, 3000);
-      }
-    };
-
-    frame.onerror = () => {
-      loaded = true;
-      clearTimeout(timeoutId);
-      URL.revokeObjectURL(url);
-      if (_retryCount < MAX_RETRIES) {
-        setTimeout(() => this._loadIntoFrame(frame, idx, w, h, isFloat, _retryCount + 1), 1500);
-      }
-    };
-
+    frame.onerror = () => URL.revokeObjectURL(url); // fix: tránh leak nếu onload không fire
     frame.src = url;
-
     setTimeout(() => {
       // fix: nếu vừa đổi nhân vật (_skipGreetingPush), bỏ qua _pushStatus
+      // vì greeting đã được hiện trực tiếp trong _switchModel để không làm lệch pool
       if (this._skipGreetingPush) { this._skipGreetingPush = false; return; }
       this._pushStatus(m.greeting, true);
     }, 2400);
@@ -1804,12 +1732,11 @@ class LiveDesk extends HTMLElement {
   // fix: khi card được gắn lại vào DOM (navigate về dashboard) → re-inject overlay
   connectedCallback() {
     if (this._floating) {
-      // fix: delay 600ms để setConfig→_render chạy xong trước, tránh race với _loadIntoFrame
-      setTimeout(() => this._rebuildFloat(), 600);
+      setTimeout(() => this._rebuildFloat(), 300);
     }
     // Pinned overlay tự duy trì qua MutationObserver, nhưng nếu mất thì rebuild
     if (this._pinned && !document.getElementById('nep-pin-overlay')) {
-      setTimeout(() => this._rebuildPin(), 600);
+      setTimeout(() => this._rebuildPin(), 300);
     }
   }
 
@@ -1913,7 +1840,6 @@ class LiveDesk extends HTMLElement {
       window.removeEventListener('message', this._msgListener);
       this._msgListener = null;
     }
-    if (this._iframeObserver) { this._iframeObserver.disconnect(); this._iframeObserver = null; }
     if (this._idleInterval)   { clearInterval(this._idleInterval);   this._idleInterval   = null; }
     if (this._statusInterval) { clearInterval(this._statusInterval); this._statusInterval = null; }
     if (this._floatChatInterval) { clearInterval(this._floatChatInterval); this._floatChatInterval = null; }
@@ -2009,7 +1935,7 @@ class LiveDeskEditor extends HTMLElement {
 
   _render() {
     const cfg    = this._config;
-    const blur   = cfg.card_blur !== undefined ? cfg.card_blur : 8;
+    const blur   = cfg.card_blur !== undefined ? cfg.card_blur : 0;
     const ttsEng = (cfg.tts && cfg.tts.engine) || 'webspeech';
     const ttsLang  = (cfg.tts && cfg.tts.lang)  || 'vi-VN';
     const ttsRate  = (cfg.tts && cfg.tts.rate)  || 1.05;
@@ -2021,9 +1947,8 @@ class LiveDeskEditor extends HTMLElement {
     const entCount = Math.max(1, Math.min(12, parseInt(cfg._ent_count || entities.length || 3)));
 
     // Current model nickname for TTS hint
-    const _savedIdx = parseInt(localStorage.getItem('nep_modelIdx') || '0');
-    const curModel  = MODELS[_savedIdx] || MODELS[0];
-    const curNick   = this._getCharNickname(curModel.name);
+    const curModel = MODELS[defaultModelIdx] || MODELS[0];
+    const curNick  = this._getCharNickname(curModel.name);
 
     this.shadowRoot.innerHTML = `<style>
       :host{display:block;padding:4px 0}
@@ -2069,7 +1994,7 @@ class LiveDeskEditor extends HTMLElement {
 
     <!-- HEADER -->
     <div style="text-align:center;padding:12px 14px 4px;font-size:11px;color:var(--secondary-text-color);line-height:1.7;">
-      💜 <strong style="color:var(--primary-color)">LiveDesk v1.0</strong> — Live2D Waifu Dashboard<br/>
+      💜 <strong style="color:var(--primary-color)">LiveDesk v1.0.1</strong> — Live2D Waifu Dashboard<br/>
       Designed by <strong style="color:var(--primary-color)">@doanlong1412</strong> from 🇻🇳 Vietnam
     </div>
 
