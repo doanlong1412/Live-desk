@@ -1,104 +1,368 @@
 /**
- * livedesk.js  v1.0.2
- * ─ Nền trong suốt, blur nhẹ, bo tròn
- * ─ Xóa sensor bar header
- * ─ Toolbar glass 3D nổi
- * ─ Nhân vật to hơn
- * ─ Bubble ô vuông góc phải, tự đổi mỗi 3s
- * ─ Câu chào theo buổi + nhiệt độ / thời tiết thực
- * ─ Giá trị số luôn là số nguyên (Math.round)
- * ─ TTS linh hoạt: cấu hình qua YAML, hỗ trợ nhiều engine
- *
- * Config YAML:
- *   type: custom:live-desk
- *   name: Anh Long          # tên hiển thị trong lời chào
- *   temp_sensor:    sensor.nhiet_do
- *   humid_sensor:   sensor.do_am
- *   weather_entity: weather.home
- *   motion_sensor:  binary_sensor.chuyen_dong
- *   door_sensor:    binary_sensor.cua_chinh
- *   smoke_sensor:   binary_sensor.bao_khoi
- *   height: 440
- *   float_height: 500
- *   float_width:  320
- *
- *   # ── TTS ENGINE ─────────────────────────────────────────────
- *   # Chọn một trong các mode sau:
- *
- *   # 1. Web Speech API (mặc định, không cần cấu hình)
- *   tts:
- *     engine: webspeech       # dùng giọng nói có sẵn trong trình duyệt
- *     lang: vi-VN             # tuỳ chọn, mặc định vi-VN
- *     rate: 1.05              # tuỳ chọn, 0.5–2.0
- *     pitch: 1.2              # tuỳ chọn, 0–2
- *
- *   # 2. Google Translate TTS (không cần addon HA)
- *   tts:
- *     engine: google_translate # gọi API Google Translate TTS qua audio tag
- *     lang: vi                 # mã ngôn ngữ Google (vi, en, ja, ...)
- *
- *   # 3. Home Assistant TTS service
- *
- *   # Kiểu mới HA 2023.8+ — dùng tts.speak (KHUYÊN DÙNG)
- *   tts:
- *     engine: ha_service
- *     service: tts.speak
- *     entity_id: tts.google_translate_vi_com          # TTS entity (tts.xxx)
- *     media_player_entity_id: media_player.loa_phong  # tuỳ chọn:
- *                                                     #   có → phát qua loa HA
- *                                                     #   bỏ → fetch audio URL từ HA rồi
- *                                                     #        phát trên trình duyệt/app
- *                                                     #        (giọng giống hệt loa vật lý)
- *     cache: true
- *
- *   # Kiểu cũ — tts.google_translate_say / tts.cloud_say
- *   tts:
- *     engine: ha_service
- *     service: tts.google_translate_say
- *     entity_id: media_player.loa_phong_khach         # media_player entity
- *     lang: vi
- *
- *   # 4. Tắt TTS hoàn toàn
- *   tts:
- *     engine: none
- *   # ────────────────────────────────────────────────────────────
- *
- *   entities:               # danh sách thiết bị hiển thị nút trong toolbar
- *     - entity: light.phong_khach
- *       name: Đèn phòng khách   # tuỳ chọn, nếu bỏ sẽ dùng friendly_name từ HA
- *     - entity: fan.phong_ngu
- *     - entity: switch.o_cam_tivi
+ * livedesk.js  v1.1
+
  */
 
 // ─── Models ──────────────────────────────────────────────────
 const MODELS = [
-  // hasSound: false → dùng TTS khi không có sound file
-  // soundBase: thư mục gốc chứa sound (tự động lấy từ path model nếu không set)
+  // hasSound: false → use TTS when no sound file available
+  // soundBase: root folder for sounds (auto-inferred from model path if not set)
   { name:'Neptune 💜', path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/Neptune/model.json',
-    greeting:'Nep Nep đây! 💜',      hasSound:false },
+    greeting:'Nep Nep đây! 💜', greeting_en:'Nep Nep is here! 💜',      hasSound:false, scale:1.4, vOffset:-20 },
   { name:'Neptune Sailor ⚓', path:'https://cdn.jsdelivr.net/gh/zenghongtu/live2d-model-assets@master/assets/HyperdimensionNeptunia/nepmaid/model.json',
-    greeting:'Nep Nep thủy thủ đây~ ⚓ Bộ đồ sailor có đẹp không?', hasSound:false },
+    greeting:'Nep Nep thủy thủ đây~ ⚓ Bộ đồ sailor có đẹp không?', greeting_en:'Nep Nep the sailor is here~ ⚓ Do you like the sailor outfit?', hasSound:false, scale:1.1, vOffset:-40 },
   { name:'Neptune Santa 🎅', path:'https://cdn.jsdelivr.net/gh/zenghongtu/live2d-model-assets@master/assets/HyperdimensionNeptunia/neptune_santa/model.json',
-    greeting:'Ho ho ho~! Nep Santa mang quà tới rồi! 🎁', hasSound:false },
+    greeting:'Ho ho ho~! Nep Santa mang quà tới rồi! 🎁', greeting_en:'Ho ho ho~! Nep Santa brought gifts! 🎁', hasSound:false, scale:1.1, vOffset:-40 },
   { name:'Vert 💚',    path:'https://cdn.jsdelivr.net/gh/fghrsh/live2d_api@master/model/HyperdimensionNeptunia/vert_normal/index.json',
-    greeting:'Xin chào! Mình là Vert đây~ 💚', hasSound:false },
+    greeting:'Xin chào! Mình là Vert đây~ 💚', greeting_en:'Hello! I\'m Vert~ 💚', hasSound:false, scale:1.2, vOffset:-40 },
   { name:'Vert Classic 🌿', path:'https://cdn.jsdelivr.net/gh/zenghongtu/live2d-model-assets@master/assets/HyperdimensionNeptunia/vert_classic/model.json',
-    greeting:'Vert classic outfit, thích hơn không? 🌿', hasSound:false },
+    greeting:'Vert classic outfit, thích hơn không? 🌿', greeting_en:'Vert classic outfit, do you prefer this? 🌿', hasSound:false, scale:1.2, vOffset:-40 },
   { name:'Koharu 🌸',  path:'https://cdn.jsdelivr.net/npm/live2d-widget-model-koharu@1.0.5/assets/koharu.model.json',
-    greeting:'Koharu xin chào! ✿',   hasSound:false },
+    greeting:'Koharu xin chào! ✿', greeting_en:'Koharu says hello! ✿',   hasSound:false, scale:0.9, vOffset:-20 },
   { name:'Shizuku ❄️', path:'https://cdn.jsdelivr.net/npm/live2d-widget-model-shizuku@1.0.5/assets/shizuku.model.json',
-    greeting:'Shizuku ở đây~ ❄️',   hasSound:true,  soundExt:'.mp3',
+    greeting:'Shizuku ở đây~ ❄️', greeting_en:'Shizuku is here~ ❄️',   hasSound:true,  soundExt:'.mp3', scale:0.7, vOffset:-60,
     soundBase:'https://cdn.jsdelivr.net/npm/live2d-widget-model-shizuku@1.0.5/assets/' },
   { name:'Noire 🖤',   path:'https://cdn.jsdelivr.net/gh/fghrsh/live2d_api@master/model/HyperdimensionNeptunia/noir/index.json',
-    greeting:'Noire đây! Đừng có mà nhìn ta như vậy... 🖤', hasSound:false },
+    greeting:'Noire đây! Đừng có mà nhìn ta như vậy... 🖤', greeting_en:'Noire is here! Don\'t look at me like that... 🖤', hasSound:false, vOffset:-40 },
   { name:'Uni 🩷',     path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/uni/model.json',
-    greeting:'Uni xin chào! Đừng làm phiền chị Noire của mình nha~ 🩷', hasSound:false,
+    greeting:'Uni xin chào! Đừng làm phiền chị Noire của mình nha~ 🩷', greeting_en:'Uni says hello! Don\'t disturb my sister Noire~ 🩷', hasSound:false,
     vOffset:-80, scale:0.65 },
   { name:'Blanc 📖',   path:'https://cdn.jsdelivr.net/gh/fghrsh/live2d_api@master/model/HyperdimensionNeptunia/blanc_swimwear/index.json',
-    greeting:'...Xin chào. Mình là Blanc. 📖', hasSound:false },
+    greeting:'...Xin chào. Mình là Blanc. 📖', greeting_en:'...Hello. I\'m Blanc. 📖', hasSound:false },
   { name:'Tia 🧪',      path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/tia/model.json',
-    greeting:'Xin chào! Tia đây~ Cần mua potion không? 🧪', hasSound:false },
+    greeting:'Xin chào! Tia đây~ Cần mua potion không? 🧪', greeting_en:'Hello! Tia is here~ Need a potion? 🧪', hasSound:false, scale:0.8 },
+  { name:'HK416 Normal 🎯', path:'https://raw.githubusercontent.com/zenghongtu/live2d-model-assets/master/assets/moc/girls-frontline/HK416-1/normal/model.json',
+    greeting:'HK416 báo cáo! Sẵn sàng chiến đấu~ 🎯', greeting_en:'HK416 reporting! Ready for action~ 🎯', hasSound:false, scale:0.9, vOffset:-20 },
+  { name:'HK416 Destroy 💥', path:'https://raw.githubusercontent.com/zenghongtu/live2d-model-assets/master/assets/moc/girls-frontline/HK416-1/destroy/model.json',
+    greeting:'HK416... không sao đâu, vẫn còn chiến được! 💥', greeting_en:'HK416... it\'s fine, still combat ready! 💥', hasSound:false, scale:0.9, vOffset:-20 },
+  { name:'UMP45 🔫', path:'https://raw.githubusercontent.com/zenghongtu/live2d-model-assets/master/assets/moc/girls-frontline/UMP45-2/normal/model.json',
+    greeting:'UMP45 đây~ Để mình canh nhà cho! 🔫', greeting_en:'UMP45 is here~ Let me guard the house! 🔫', hasSound:false, scale:0.8, vOffset:-30 },
+  { name:'M4A1 🛡️', path:'https://raw.githubusercontent.com/zenghongtu/live2d-model-assets/master/assets/moc/girls-frontline/M4A1-1/normal/model.json',
+    greeting:'M4A1 xin chào! Nhiệm vụ bảo vệ bắt đầu~ 🛡️', greeting_en:'M4A1 says hello! Protection mission starting~ 🛡️', hasSound:false, scale:1.2},
+  { name:'SOPMOD-II 🔥', path:'https://raw.githubusercontent.com/zenghongtu/live2d-model-assets/master/assets/moc/girls-frontline/M4-SOPMOD-II-1/normal/model.json',
+    greeting:'SOPMOD đây!! Thích nổ không? Mình có nhiều lắm~ 🔥', greeting_en:'SOPMOD is here!! Like explosions? I have plenty~ 🔥', hasSound:false },
+  { name:'WA2000 Destroy 🌹', path:'https://raw.githubusercontent.com/zenghongtu/live2d-model-assets/master/assets/moc/girls-frontline/WA2000-3/destroy/model.json',
+    greeting:'...WA2000 đây. Đừng nhìn ta như vậy! 🌹', greeting_en:'...WA2000 is here. Don\'t look at me like that! 🌹', hasSound:false },
+  { name:'G36 🎯',       path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/g36_2407/model.json',
+    greeting:'G36 đây. Tất cả chỉ số bình thường. Tiếp tục giám sát~ 🎯', greeting_en:'G36 here. All readings normal. Continuing surveillance~ 🎯', hasSound:false, scale:0.9, vOffset:-10 },
+  { name:'NTW-20 🔭',   path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/ntw20_2301/model.json',
+    greeting:'...NTW-20. Đang theo dõi. Mọi thứ nằm trong tầm ngắm~ 🔭', greeting_en:'...NTW-20. Monitoring. Everything is in my sights~ 🔭', hasSound:false, scale:0.9, vOffset:-10 },
+  { name:'Len Space 🚀', path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/len_space/model.json',
+    greeting:'Len từ vũ trụ đây~ Hệ thống của bạn sáng như sao vậy! 🚀', greeting_en:'Len from space is here~ Your system shines like the stars! 🚀', hasSound:false, scale:0.6, vOffset:-30 },
+  { name:'K2 💜', path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/k2_3301/model.json',
+    greeting:'K2 đây~ Đừng có lo, mình sẽ bảo vệ mọi người! 💜', greeting_en:'K2 is here~ Don\'t worry, I\'ll protect everyone! 💜', hasSound:false, scale:1.2, vOffset:-20 },
+  { name:'PKP 🎀', path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/pkp_1201/model.json',
+    greeting:'PKP báo cáo! Nhẹ nhàng thôi nhé, mình vẫn nguy hiểm lắm đó~ 🎀', greeting_en:'PKP reporting! Be gentle, I\'m still dangerous~ 🎀', hasSound:false, scale:0.9, vOffset:-20 },
+  { name:'RFB 🎄', path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/rfb_1601/model.json',
+    greeting:'RFB đây! Giáng sinh vui vẻ~ Mình mang quà tới rồi đó! 🎄', greeting_en:'RFB is here! Happy holidays~ I brought gifts! 🎄', hasSound:false, scale:0.75, vOffset:-20 },
+  { name:'Lewis 🌸', path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/lewis_3502/model.json',
+    greeting:'Lewis đây~ Bộ kimono có đẹp không? Mình tự chọn đó! 🌸', greeting_en:'Lewis is here~ Do you like the kimono? I chose it myself! 🌸', hasSound:false, scale:0.75, vOffset:-20 },
+  { name:'DSR-50 🔴', path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/dsr50_2101/model.json',
+    greeting:'DSR-50 đây. Ngồi xuống đi, nói chuyện cho vui~ 🔴', greeting_en:'DSR-50 here. Sit down, let\'s chat~ 🔴', hasSound:false, scale:0.9, vOffset:-20 },
+  { name:'Gelina ⚙️', path:'https://cdn.jsdelivr.net/gh/evrstr/live2d-widget-models/live2d_evrstr/gelina/model.json',
+    greeting:'Gelina đây! Bộ đồ cơ khí này cool lắm không? Tự độ chế luôn á~ ⚙️', greeting_en:'Gelina is here! This mech outfit is cool, right? Built it myself~ ⚙️', hasSound:false, scale:0.9, vOffset:-20 },
 ];
+
+// ─── i18n System ─────────────────────────────────────────────
+const I18N = {
+  vi: {
+    // Card toolbar buttons
+    btnPrev:    '◀ Trước',
+    btnNext:    '▶ Sau',
+    btnQuote:   '💬 Nói',
+    btnSound:   '🔊 TTS',
+    btnReload:  '🔄 Reload',
+    // Window control tooltips
+    winMini:    'Mini',
+    winPin:     'Ghim',
+    winHide:    'Ẩn',
+    // Pin/float button labels
+    pinActive:  '📍 Bỏ ghim',
+    pinInactive:'📍 Ghim',
+    floatRestore:'⬆ Vào card',
+    // Sound toggle
+    soundOn:    '🔊 TTS: Bật',
+    soundOff:   '🔇 TTS: Tắt',
+    // Reload message
+    reloadMsg:  n => `${n} đã reload xong rồi nha~ 🔄`,
+    // Hide/show snackbar
+    hideMsg:    n => `${n} đi rồi nha~ 💜👋 Nhớ ${n} nghen!`,
+    // Float tip messages
+    floatTips:  n => [
+      `${n} đang canh nhà cho bạn nha~ 🛡️`,
+      'Đúp click để về card nghen!',
+      `Nhà thông minh + ${n} = xịn xò dữ vậy! 💜`,
+      'Uống nước vô đi nào~ 💧',
+      `Cố lên nha! ${n} cổ vũ hết mình luôn! 💪`,
+      `${n} canh nhà thiệt thọ nha, đừng lo~ 💜`
+    ],
+    floatInitTip: n => `${n} canh nhà góc phải rồi nha~ 💜 Đúp click để về card nghen!`,
+    floatCharTips: n => [
+      `${n} đang canh nhà đây nha~`,
+      'Đúp click để về card nghen!',
+      'Hí hí~ 💜',
+      'Cù lét! >///<',
+      `Thương ${n} hông? 💜`,
+      `Ủa sao chọc ${n} hoài vậy ta~ 😳`
+    ],
+    // Click character tips
+    charClickTips: n => [
+      `Đừng chọc ${n} nha! ${n} giận rồi đó! (≧∇≦)`,
+      `Ủa, sờ ${n} hồi nào vậy? (ó﹏ò｡)`,
+      'Hí hí~ Nhột lắm á! 💜',
+      `Cù lét! ${n} hổng chịu đâu nha! >///<`,
+      `${n} ${n}~ Thương ${n} hông? 💜`,
+      `Ôi trời ơi, chọc ${n} hoài vậy ta! 😳`,
+      `${n} mắc cỡ quá hà~ >///<`
+    ],
+    // Pin overlay click tips
+    pinClickTips: n => [
+      `${n} đang ghim ở đây nha~ 📍`,
+      'Hí hí~ 💜',
+      'Cù lét! >///<',
+      `Thương ${n} hông? 💜`,
+      `Ủa sao chọc ${n} hoài~ 😳`
+    ],
+    // Return from float
+    returnMsg: n => `${n} về nhà rồi nha~ 🏠💜 Nhớ ${n} hông?`,
+    // Editor sections
+    editorHeader: 'LiveDesk v1.1 — Live2D Waifu Dashboard',
+    editorBy: '@doanlong1412 từ 🇻🇳 Vietnam',
+    secGeneral:   '⚙️ Cài đặt chung',
+    secAppear:    '🎨 Giao diện & Hiệu ứng',
+    secSensors:   '🌡️ Cảm biến môi trường',
+    secAlerts:    '🚨 Cảm biến cảnh báo',
+    secDevices:   '🏠 Thiết bị hiển thị (toolbar)',
+    secTTS:       '🔊 Giọng nói (TTS)',
+    // Editor field labels
+    lblOwnerName: '👤 Tên chủ nhân',
+    lblOwnerNameHint: '(nhân vật sẽ gọi tên này trong lời chào)',
+    lblOwnerNamePlaceholder: 'vd: Anh Long, bạn, boss...',
+    lblOwnerNameEmpty: 'Để trống = mặc định gọi là "bạn"',
+    lblCharNick:  '✏️ Tên tự xưng tuỳ chỉnh',
+    lblCharNickHint: '(ghi đè tên mặc định của nhân vật)',
+    lblCharNickPlaceholder: 'vd: Nep, Emilia, Aqua...',
+    lblCharNickEmpty: n => `Để trống = dùng tên gốc nhân vật (${n}). Nhân vật sẽ tự xưng bằng tên này trong câu thoại.`,
+    lblCardHeight:'📐 Chiều cao card (px)',
+    lblBlur:      '🪟 Độ mờ nền (blur)',
+    lblBlurHint:  '0px = trong suốt hoàn toàn · 30px = mờ tối đa. Kéo để xem preview ngay trên card.',
+    lblMiniMode:  'Chế độ Mini / Ghim',
+    lblFloatH:    '📐 Chiều cao nhân vật nổi (px)',
+    lblFloatW:    '📐 Chiều rộng nhân vật nổi (px)',
+    lblSensorsHint: 'Nhân vật sẽ phản ứng và đưa lời khuyên theo dữ liệu cảm biến thực từ Home Assistant.',
+    lblTempSensor:'🌡️ Cảm biến nhiệt độ',
+    lblHumidSensor:'💧 Cảm biến độ ẩm',
+    lblWeatherEnt:'⛅ Entity thời tiết',
+    lblAlertsHint:'Nhân vật sẽ phát cảnh báo ngay khi sensor thay đổi trạng thái.',
+    lblMotionSensor:'🚶 Cảm biến chuyển động',
+    lblDoorSensor:'🚪 Cảm biến cửa',
+    lblSmokeSensor:'🔥 Cảm biến khói / báo cháy',
+    lblDevicesHint:'Các entity được hiện thành nút trong toolbar. Hover vào nút bất kỳ trên dashboard để nhân vật giới thiệu thiết bị đó.',
+    lblDeviceCount:'Số thiết bị',
+    lblDeviceN:   i => `Thiết bị ${i + 1}`,
+    lblEntity:    '⚡ Entity',
+    lblDisplayName:'📝 Tên hiển thị',
+    lblDisplayNameHint:'(tuỳ chọn, để trống = dùng tên HA)',
+    lblDisplayNamePlaceholder:'vd: Đèn phòng khách',
+    lblTTSEngine: '⚙️ Engine TTS',
+    engWebSpeech: '🗣️ WebSpeech',
+    engGoogle:    '🌐 Google TTS',
+    engHA:        '🏠 HA Service',
+    engNone:      '🔇 Tắt',
+    lblWSLang:    '🌐 Ngôn ngữ',
+    lblWSRate:    '⏩ Tốc độ đọc',
+    lblWSPitch:   '🎵 Cao độ (pitch)',
+    lblGTTitle:   '🌐 GOOGLE TRANSLATE TTS',
+    lblGTHint:    'Dùng API Google Translate (không cần cấu hình HA). Giới hạn ~200 ký tự/lần.',
+    lblGTLang:    '🌐 Mã ngôn ngữ',
+    lblHATitle:   '🏠 HOME ASSISTANT TTS SERVICE',
+    lblHAService: '⚙️ Service',
+    lblHAServiceHint:'(vd: tts.speak, tts.google_translate_say)',
+    lblHAEntityId:'🎯 Entity ID',
+    lblHAEntityHint:'(TTS entity hoặc media_player tùy service)',
+    lblHAMedia:   '📻 Media player',
+    lblHAMediaHint:'(tuỳ chọn — nếu dùng tts.speak)',
+    lblHANoMedia: 'Nếu để trống Media player → HA sẽ fetch URL audio rồi phát trên trình duyệt (giọng giống loa vật lý).',
+    lblNoneHint:  '🔇 TTS đã tắt hoàn toàn. Nhân vật vẫn hiện bubble văn bản nhưng không đọc to.',
+    lblTip:       '💡 <strong>Tip:</strong> Sau khi chỉnh xong, bấm <strong>LƯU</strong> để lưu. Có thể chỉnh thêm trong tab YAML nếu cần cấu hình nâng cao.',
+    // Interface lang switcher label
+    lblInterfaceLang: '🌐 Ngôn ngữ giao diện',
+    // Description
+    cardDesc: 'LiveDesk — Live2D waifu trên dashboard, bubble thông minh, TTS linh hoạt',
+  },
+  en: {
+    btnPrev:    '◀ Prev',
+    btnNext:    '▶ Next',
+    btnQuote:   '💬 Talk',
+    btnSound:   '🔊 TTS',
+    btnReload:  '🔄 Reload',
+    winMini:    'Mini',
+    winPin:     'Pin',
+    winHide:    'Hide',
+    pinActive:  '📍 Unpin',
+    pinInactive:'📍 Pin',
+    floatRestore:'⬆ Back to card',
+    soundOn:    '🔊 TTS: On',
+    soundOff:   '🔇 TTS: Off',
+    reloadMsg:  n => `${n} has reloaded~ 🔄`,
+    hideMsg:    n => `${n} is gone~ 💜👋 Don't forget ${n}!`,
+    floatTips:  n => [
+      `${n} is watching the house for you~ 🛡️`,
+      'Double-click to return to card!',
+      `Smart home + ${n} = perfect combo! 💜`,
+      'Stay hydrated~ 💧',
+      `Keep it up! ${n} cheers for you! 💪`,
+      `${n} is always on duty, don't worry~ 💜`
+    ],
+    floatInitTip: n => `${n} is now watching from the corner~ 💜 Double-click to return to card!`,
+    floatCharTips: n => [
+      `${n} is watching the house~`,
+      'Double-click to return to card!',
+      'Hehe~ 💜',
+      'Tickles! >///<',
+      `Do you like ${n}? 💜`,
+      `Why do you keep poking ${n}~ 😳`
+    ],
+    charClickTips: n => [
+      `Stop poking ${n}! ${n} is upset! (≧∇≦)`,
+      `Wait, when did you touch ${n}? (ó﹏ò｡)`,
+      'Hehe~ Tickles! 💜',
+      `Tickles! ${n} won't allow it! >///<`,
+      `${n} ${n}~ Do you like ${n}? 💜`,
+      `Oh my, you keep poking ${n}! 😳`,
+      `${n} is so embarrassed~ >///<`
+    ],
+    pinClickTips: n => [
+      `${n} is pinned here~ 📍`,
+      'Hehe~ 💜',
+      'Tickles! >///<',
+      `Do you like ${n}? 💜`,
+      `Why do you keep poking ${n}~ 😳`
+    ],
+    returnMsg: n => `${n} is back home~ 🏠💜 Did you miss ${n}?`,
+    editorHeader: 'LiveDesk v1.0.2 — Live2D Waifu Dashboard',
+    editorBy: '@doanlong1412 from 🇻🇳 Vietnam',
+    secGeneral:   '⚙️ General Settings',
+    secAppear:    '🎨 Appearance & Effects',
+    secSensors:   '🌡️ Environment Sensors',
+    secAlerts:    '🚨 Alert Sensors',
+    secDevices:   '🏠 Toolbar Devices',
+    secTTS:       '🔊 Text-to-Speech (TTS)',
+    lblOwnerName: '👤 Admin name',
+    lblOwnerNameHint: '(character will call this name)',
+    lblOwnerNamePlaceholder: 'e.g. Alex, boss, friend...',
+    lblOwnerNameEmpty: 'Leave blank = defaults to "you"',
+    lblCharNick:  '✏️ Custom character nickname',
+    lblCharNickHint: '(overrides default character name)',
+    lblCharNickPlaceholder: 'e.g. Nep, Emilia, Aqua...',
+    lblCharNickEmpty: n => `Leave blank = use original name (${n}). The character will refer to itself by this name.`,
+    lblCardHeight:'📐 Card height (px)',
+    lblBlur:      '🪟 Background blur',
+    lblBlurHint:  '0px = fully transparent · 30px = maximum blur. Drag to preview on the card.',
+    lblMiniMode:  'Mini / Pin Mode',
+    lblFloatH:    '📐 Floating character height (px)',
+    lblFloatW:    '📐 Floating character width (px)',
+    lblSensorsHint: 'The character will react and give advice based on real sensor data from Home Assistant.',
+    lblTempSensor:'🌡️ Temperature sensor',
+    lblHumidSensor:'💧 Humidity sensor',
+    lblWeatherEnt:'⛅ Weather entity',
+    lblAlertsHint:'The character will alert you immediately when a sensor changes state.',
+    lblMotionSensor:'🚶 Motion sensor',
+    lblDoorSensor:'🚪 Door sensor',
+    lblSmokeSensor:'🔥 Smoke / fire sensor',
+    lblDevicesHint:'Entities shown as buttons in the toolbar. Hover over any button on the dashboard for character commentary.',
+    lblDeviceCount:'Number of devices',
+    lblDeviceN:   i => `Device ${i + 1}`,
+    lblEntity:    '⚡ Entity',
+    lblDisplayName:'📝 Display name',
+    lblDisplayNameHint:'(optional, leave blank = use HA name)',
+    lblDisplayNamePlaceholder:'e.g. Living room light',
+    lblTTSEngine: '⚙️ TTS Engine',
+    engWebSpeech: '🗣️ WebSpeech',
+    engGoogle:    '🌐 Google TTS',
+    engHA:        '🏠 HA Service',
+    engNone:      '🔇 Off',
+    lblWSLang:    '🌐 Language',
+    lblWSRate:    '⏩ Speech rate',
+    lblWSPitch:   '🎵 Pitch',
+    lblGTTitle:   '🌐 GOOGLE TRANSLATE TTS',
+    lblGTHint:    'Uses Google Translate API (no HA config needed). Limit ~200 chars per request.',
+    lblGTLang:    '🌐 Language code',
+    lblHATitle:   '🏠 HOME ASSISTANT TTS SERVICE',
+    lblHAService: '⚙️ Service',
+    lblHAServiceHint:'(e.g. tts.speak, tts.google_translate_say)',
+    lblHAEntityId:'🎯 Entity ID',
+    lblHAEntityHint:'(TTS entity or media_player depending on service)',
+    lblHAMedia:   '📻 Media player',
+    lblHAMediaHint:'(optional — for tts.speak)',
+    lblHANoMedia: 'Leave Media player blank → HA fetches audio URL and plays in the browser (same voice as physical speaker).',
+    lblNoneHint:  '🔇 TTS is completely off. The character still shows text bubbles but won\'t speak aloud.',
+    lblTip:       '💡 <strong>Tip:</strong> After editing, click <strong>SAVE</strong>. You can also adjust advanced settings in the YAML tab.',
+    lblInterfaceLang: '🌐 Interface language',
+    cardDesc: 'LiveDesk — Live2D waifu dashboard, smart bubbles, flexible TTS',
+  }
+};
+
+// Detect locale: from config, or from localStorage, default vi
+function _getLang(config) {
+  try { const s = localStorage.getItem('nep_lang'); if (s) return s; } catch(e){}
+  return (config && config.lang) || 'vi';
+}
+function _t(config, key, ...args) {
+  const lang = _getLang(config);
+  const dict = I18N[lang] || I18N['vi'];
+  const val  = dict[key];
+  if (typeof val === 'function') return val(...args);
+  return val !== undefined ? val : (I18N['vi'][key] || key);
+}
+
+// ─── English sensor reactions ─────────────────────────────────
+const SENSOR_REACTIONS_EN = {
+  temp:[
+    {max:16,  icon:'🥶', msg:'{n}, it\'s freezing at {v}°C! Put on a jacket before you catch a cold~'},
+    {max:22,  icon:'😊', msg:'{n}, a comfortable {v}°C~ {c} loves this weather! 🌤️'},
+    {max:28,  icon:'😊', msg:'{n}, a warm and pleasant {v}°C — perfect! ☀️'},
+    {max:33,  icon:'🥵', msg:'{n}, it\'s {v}°C already! Turn on the AC, it\'s too hot~'},
+    {max:999, icon:'🔥', msg:'{n}, oh no, {v}°C is scorching! 🔥 Drink water now!'}
+  ],
+  humid:[
+    {max:30,  icon:'💨', msg:'Humidity at {v}% is very low, your skin must be so dry {n}~'},
+    {max:60,  icon:'💧', msg:'Humidity at {v}% is just right~ {c} feels great!'},
+    {max:80,  icon:'💦', msg:'Humidity at {v}% is a bit high {n}, watch out for mold~'},
+    {max:999, icon:'🌊', msg:'Oh my, {v}% humidity! Extremely damp! 😱'}
+  ],
+  weather:{
+    'sunny':       {icon:'☀️',  msg:'What beautiful sunshine! {c} wants to go outside~ ☀️'},
+    'clear-night': {icon:'🌙',  msg:'Crystal clear night, the stars look stunning~ 🌙'},
+    'cloudy':      {icon:'☁️',  msg:'Cloudy today~ ☁️ Still nice though!'},
+    'partlycloudy':{icon:'⛅',  msg:'Partly cloudy with light sun — so comfortable! ⛅'},
+    'rainy':       {icon:'🌧️', msg:'It\'s raining! Don\'t forget your umbrella~ 🌂'},
+    'pouring':     {icon:'⛈️', msg:'Heavy rain! Stay home, it\'s dangerous outside! ⚡'},
+    'lightning':   {icon:'⚡',  msg:'Thunder and lightning! {c} wants to hide in a corner... 😱'},
+    'snowy':       {icon:'❄️',  msg:'Snow is falling!! So beautiful, just like anime! ❄️'},
+    'fog':         {icon:'🌫️', msg:'Dense fog outside, be careful on the road~'},
+    'windy':       {icon:'💨',  msg:'Very windy! Watch out or you might fly away~ 💨'},
+    'hail':        {icon:'🌨️', msg:'Hail! Stay inside, it really hurts! 😨'},
+    'exceptional': {icon:'⚠️', msg:'Unusual weather! Please be careful {n}~'}
+  }
+};
+const ALERT_MSGS_EN = {
+  motion:{
+    on:['Someone is moving! {c} spotted them~ 👀','Someone is walking around! Let {c} check~ 🚶',
+        'Wait, is someone there? {c} is on guard! 👀','{c} detected movement~'],
+    off:['No more movement~ 😌 All quiet!','All clear, silence restored~']
+  },
+  door:{
+    on:['Door opened! Who is coming in? 🚪','The door is open — remember to close it so mosquitoes don\'t get in!',
+        'Hmm, the door opened? Nobody told {c}~'],
+    off:['Door closed, all safe now~ 🔒','Door closed! {c} feels relieved~']
+  },
+  smoke:{
+    on:['⚠️ SMOKE DETECTED! Check immediately! 🔥🚨','🚨 SMOKE ALERT! Evacuate now, don\'t hesitate!',
+        '🚨 Oh no, smoke detected! Get out now! 🔥'],
+    off:['No more smoke, what a relief~ 😮‍💨','Smoke cleared! That gave {c} a scare~']
+  }
+};
 
 const SENSOR_REACTIONS = {
   temp:[
@@ -147,36 +411,82 @@ const ALERT_MSGS = {
   }
 };
 
-// ─── Device type detection từ entity_id ─────────────────────
+// ─── Device type detection from entity_id ──────────────────
 const DEVICE_TYPES = [
-  { prefix:'light.',          icon:'💡', label:'Đèn',          nep: (n,s) => `Đây là ${s||'đèn'} đó ${n}~ 💡 Bật lên cho sáng nhà nào!` },
-  { prefix:'fan.',            icon:'🌀', label:'Quạt',         nep: (n,s) => `Quạt ${s||''} nè ${n}~ 🌀 Nóng thì bật lên cho mát!` },
-  { prefix:'switch.',         icon:'🔌', label:'Công tắc',     nep: (n,s) => `Công tắc ${s||''} đây ${n}~ 🔌 Bật/tắt thoải mái nha!` },
-  { prefix:'climate.',        icon:'❄️', label:'Điều hòa',     nep: (n,s) => `Điều hòa ${s||''} đó ${n}~ ❄️ {c} thích mát lắm!` },
-  { prefix:'cover.',          icon:'🪟', label:'Rèm/Cửa cuốn', nep: (n,s) => `Rèm ${s||''} nè ${n}~ 🪟 Kéo lên ngắm nắng đi!` },
-  { prefix:'media_player.',   icon:'📺', label:'TV/Loa',        nep: (n,s) => `TV hay loa ${s||''} kìa ${n}~ 📺 Mở anime lên xem nào!` },
-  { prefix:'camera.',         icon:'📷', label:'Camera',        nep: (n,s) => `Camera ${s||''} đó ${n}~ 📷 {c} canh cùng nhé!` },
-  { prefix:'sensor.',         icon:'🌡️', label:'Cảm biến',     nep: (n,s) => `Cảm biến ${s||''} này ${n}~ 🌡️ {c} đang đọc số liệu!` },
-  { prefix:'binary_sensor.',  icon:'👁️', label:'Cảm biến',     nep: (n,s) => `Cảm biến ${s||''} đây ${n}~ 👁️ {c} đang theo dõi!` },
-  { prefix:'input_boolean.',  icon:'🔘', label:'Nút bật/tắt',  nep: (n,s) => `Nút ${s||''} nè ${n}~ 🔘 Bấm thử xem!` },
-  { prefix:'automation.',     icon:'⚙️', label:'Tự động hóa',  nep: (n,s) => `Tự động hóa ${s||''} đó ${n}~ ⚙️ Thông minh ghê!` },
-  { prefix:'script.',         icon:'📜', label:'Script',        nep: (n,s) => `Script ${s||''} nè ${n}~ 📜 Bấm để chạy lệnh!` },
-  { prefix:'scene.',          icon:'🎨', label:'Cảnh',          nep: (n,s) => `Cảnh ${s||''} đó ${n}~ 🎨 Đẹp như trong anime luôn!` },
-  { prefix:'lock.',           icon:'🔒', label:'Khóa',          nep: (n,s) => `Khóa ${s||''} nè ${n}~ 🔒 An toàn là số 1!` },
-  { prefix:'alarm_control.',  icon:'🚨', label:'Báo động',      nep: (n,s) => `Báo động ${s||''} kìa ${n}~ 🚨 {c} canh giữ nhà!` },
-  { prefix:'vacuum.',         icon:'🤖', label:'Robot hút bụi', nep: (n,s) => `Robot hút bụi ${s||''} đó ${n}~ 🤖 Cute lắm vậy!` },
-  { prefix:'water_heater.',   icon:'🚿', label:'Máy nước nóng', nep: (n,s) => `Máy nước nóng ${s||''} nè ${n}~ 🚿 Tắm nước ấm dễ chịu lắm!` },
+  { prefix:'light.',          icon:'💡', label_vi:'Đèn',           label_en:'Light',
+    nep_vi: (n,s) => `Đây là ${s||'đèn'} đó ${n}~ 💡 Bật lên cho sáng nhà nào!`,
+    nep_en: (n,s) => `That's the ${s||'light'} ${n}~ 💡 Turn it on to brighten things up!` },
+  { prefix:'fan.',            icon:'🌀', label_vi:'Quạt',           label_en:'Fan',
+    nep_vi: (n,s) => `Quạt ${s||''} nè ${n}~ 🌀 Nóng thì bật lên cho mát!`,
+    nep_en: (n,s) => `Fan ${s||''} over here ${n}~ 🌀 Turn it on when it gets hot!` },
+  { prefix:'switch.',         icon:'🔌', label_vi:'Công tắc',       label_en:'Switch',
+    nep_vi: (n,s) => `Công tắc ${s||''} đây ${n}~ 🔌 Bật/tắt thoải mái nha!`,
+    nep_en: (n,s) => `Switch ${s||''} right here ${n}~ 🔌 Toggle it freely!` },
+  { prefix:'climate.',        icon:'❄️', label_vi:'Điều hòa',       label_en:'AC',
+    nep_vi: (n,s) => `Điều hòa ${s||''} đó ${n}~ ❄️ {c} thích mát lắm!`,
+    nep_en: (n,s) => `AC ${s||''} there ${n}~ ❄️ {c} loves it cool!` },
+  { prefix:'cover.',          icon:'🪟', label_vi:'Rèm/Cửa cuốn',  label_en:'Cover/Blinds',
+    nep_vi: (n,s) => `Rèm ${s||''} nè ${n}~ 🪟 Kéo lên ngắm nắng đi!`,
+    nep_en: (n,s) => `Curtain ${s||''} here ${n}~ 🪟 Open it up to enjoy the sunshine!` },
+  { prefix:'media_player.',   icon:'📺', label_vi:'TV/Loa',          label_en:'TV/Speaker',
+    nep_vi: (n,s) => `TV hay loa ${s||''} kìa ${n}~ 📺 Mở anime lên xem nào!`,
+    nep_en: (n,s) => `TV or speaker ${s||''} there ${n}~ 📺 Let's watch some anime!` },
+  { prefix:'camera.',         icon:'📷', label_vi:'Camera',          label_en:'Camera',
+    nep_vi: (n,s) => `Camera ${s||''} đó ${n}~ 📷 {c} canh cùng nhé!`,
+    nep_en: (n,s) => `Camera ${s||''} there ${n}~ 📷 {c} will keep watch too!` },
+  { prefix:'sensor.',         icon:'🌡️', label_vi:'Cảm biến',       label_en:'Sensor',
+    nep_vi: (n,s) => `Cảm biến ${s||''} này ${n}~ 🌡️ {c} đang đọc số liệu!`,
+    nep_en: (n,s) => `Sensor ${s||''} here ${n}~ 🌡️ {c} is reading the data!` },
+  { prefix:'binary_sensor.',  icon:'👁️', label_vi:'Cảm biến',       label_en:'Sensor',
+    nep_vi: (n,s) => `Cảm biến ${s||''} đây ${n}~ 👁️ {c} đang theo dõi!`,
+    nep_en: (n,s) => `Sensor ${s||''} here ${n}~ 👁️ {c} is monitoring!` },
+  { prefix:'input_boolean.',  icon:'🔘', label_vi:'Nút bật/tắt',    label_en:'Toggle',
+    nep_vi: (n,s) => `Nút ${s||''} nè ${n}~ 🔘 Bấm thử xem!`,
+    nep_en: (n,s) => `Toggle ${s||''} here ${n}~ 🔘 Give it a press!` },
+  { prefix:'automation.',     icon:'⚙️', label_vi:'Tự động hóa',    label_en:'Automation',
+    nep_vi: (n,s) => `Tự động hóa ${s||''} đó ${n}~ ⚙️ Thông minh ghê!`,
+    nep_en: (n,s) => `Automation ${s||''} there ${n}~ ⚙️ So smart!` },
+  { prefix:'script.',         icon:'📜', label_vi:'Script',           label_en:'Script',
+    nep_vi: (n,s) => `Script ${s||''} nè ${n}~ 📜 Bấm để chạy lệnh!`,
+    nep_en: (n,s) => `Script ${s||''} here ${n}~ 📜 Press to run!` },
+  { prefix:'scene.',          icon:'🎨', label_vi:'Cảnh',             label_en:'Scene',
+    nep_vi: (n,s) => `Cảnh ${s||''} đó ${n}~ 🎨 Đẹp như trong anime luôn!`,
+    nep_en: (n,s) => `Scene ${s||''} there ${n}~ 🎨 Beautiful like anime!` },
+  { prefix:'lock.',           icon:'🔒', label_vi:'Khóa',             label_en:'Lock',
+    nep_vi: (n,s) => `Khóa ${s||''} nè ${n}~ 🔒 An toàn là số 1!`,
+    nep_en: (n,s) => `Lock ${s||''} here ${n}~ 🔒 Safety first!` },
+  { prefix:'alarm_control.',  icon:'🚨', label_vi:'Báo động',         label_en:'Alarm',
+    nep_vi: (n,s) => `Báo động ${s||''} kìa ${n}~ 🚨 {c} canh giữ nhà!`,
+    nep_en: (n,s) => `Alarm ${s||''} there ${n}~ 🚨 {c} is guarding the house!` },
+  { prefix:'vacuum.',         icon:'🤖', label_vi:'Robot hút bụi',    label_en:'Robot Vacuum',
+    nep_vi: (n,s) => `Robot hút bụi ${s||''} đó ${n}~ 🤖 Cute lắm vậy!`,
+    nep_en: (n,s) => `Robot vacuum ${s||''} there ${n}~ 🤖 So cute!` },
+  { prefix:'water_heater.',   icon:'🚿', label_vi:'Máy nước nóng',    label_en:'Water Heater',
+    nep_vi: (n,s) => `Máy nước nóng ${s||''} nè ${n}~ 🚿 Tắm nước ấm dễ chịu lắm!`,
+    nep_en: (n,s) => `Water heater ${s||''} here ${n}~ 🚿 A warm shower feels so good!` },
 ];
 
-function detectDevice(entityId, hass) {
+function detectDevice(entityId, hass, lang) {
   if (!entityId) return null;
+  lang = lang || 'vi';
   const dt = DEVICE_TYPES.find(d => entityId.startsWith(d.prefix));
-  if (!dt) return { icon:'🏠', label:'Thiết bị', nep:(n)=>`Thiết bị ${entityId} đó ${n}~ 🏠` };
-  // Lấy friendly_name từ HA nếu có
+  if (!dt) return {
+    icon:'🏠',
+    label: lang === 'en' ? 'Device' : 'Thiết bị',
+    nep:(n) => lang === 'en'
+      ? `Device ${entityId} is right there ${n}~ 🏠`
+      : `Thiết bị ${entityId} đó ${n}~ 🏠`
+  };
+  // Get friendly_name from HA if available
   const friendlyName = hass && hass.states[entityId]
     ? (hass.states[entityId].attributes.friendly_name || '')
     : '';
-  return { ...dt, friendlyName };
+  return {
+    ...dt,
+    label: lang === 'en' ? (dt.label_en || dt.label_vi) : dt.label_vi,
+    nep:   lang === 'en' ? (dt.nep_en   || dt.nep_vi)   : dt.nep_vi,
+    friendlyName
+  };
 }
 
 // ─── iframe HTML cho Live2D ───────────────────────────────────
@@ -207,15 +517,15 @@ canvas{display:block;position:absolute;top:0;left:0;}
     window.addEventListener('message', function(e){
       if(!e.data || e.data.type !== 'nepEye') return;
       try {
-        // L2Dwidget dùng internal model manager
+        // L2Dwidget uses internal model manager
         var core = L2Dwidget && L2Dwidget.emit && L2Dwidget;
-        // Truy cập thẳng vào live2d model qua canvas __model__
+        // Access live2d model directly via canvas __model__
         var cv = document.getElementById('live2d');
         if(!cv || !cv.__model__) return;
         var m = cv.__model__;
         var px = e.data.px; // 0..1 (0=left,1=right)
         var py = e.data.py; // 0..1 (0=top,1=bottom)
-        // Map sang tọa độ model: eye X [-1,1], eye Y [-1,1]
+        // Map to model coordinates: eye X [-1,1], eye Y [-1,1]
         var ex = (px - 0.5) * 2;
         var ey = (py - 0.5) * -2;
         if(m.setParamFloat){
@@ -270,7 +580,7 @@ canvas{display:block;position:absolute;top:0;left:0;}
 </body></html>`;
 }
 
-// ─── FLOAT CSS (inject vào document) ────────────────────────
+// ─── FLOAT CSS (inject into document) ─────────────────────
 const FLOAT_CSS = `
 #nep-float-overlay{position:fixed;bottom:0;right:16px;z-index:2147483647;display:flex;flex-direction:column;align-items:flex-end;pointer-events:none;}
 #_nep_float_bubble{pointer-events:none;margin-bottom:8px;margin-right:10px;max-width:200px;padding:10px 13px;
@@ -288,7 +598,7 @@ const FLOAT_CSS = `
 #nep-float-char{pointer-events:all;cursor:pointer;filter:drop-shadow(0 8px 24px rgba(106,76,156,0.5));transition:transform 0.25s;position:relative;}
 #nep-float-char:hover{transform:scale(1.05) translateY(-6px);}
 #nep-float-char iframe{border:none;background:transparent;display:block;pointer-events:none;}
-/* Pinned overlay — nhỏ gọn, luôn đè lên dashboard */
+/* Pinned overlay — compact, always on top of dashboard */
 #nep-pin-overlay{position:fixed;bottom:0;right:16px;z-index:2147483646;display:flex;flex-direction:column;align-items:flex-end;pointer-events:none;}
 #nep-pin-controls{pointer-events:all;display:flex;gap:5px;margin-bottom:4px;margin-right:8px;}
 .nep-pin-btn{background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.35);
@@ -315,7 +625,7 @@ const FLOAT_CSS = `
   border:9px solid transparent;border-right-color:rgba(190,150,230,0.8);border-left:none;}
 #_nep_pin_chat_inner::before{content:'';position:absolute;top:50%;left:-15px;transform:translateY(-50%);
   border:7px solid transparent;border-right-color:rgba(255,255,255,0.95);border-left:none;z-index:1;}
-/* Bubble chat kiểu card — hiện phía trên nhân vật bên phải */
+/* Card-style chat bubble — appears above character on the right */
 #_nep_float_chat{
   pointer-events:none;position:absolute;
   bottom:68%;right:8px;
@@ -362,17 +672,69 @@ const CARD_TEMPLATE = `
 <style>
   :host{display:block;}
 
-  /* Card: trong suốt, bo tròn, blur=1 */
+  /* Card: transparent, rounded, blur=1 */
   .nep-card{
     background:transparent;
     backdrop-filter:none;-webkit-backdrop-filter:none;
     border-radius:22px;
     border:1px solid rgba(255,255,255,0.18);
-    overflow:hidden;position:relative;
+    overflow:visible;position:relative;
     font-family:'Segoe UI',sans-serif;
     box-shadow:0 8px 32px rgba(31,38,135,0.18);
     padding:0;
   }
+
+  /* Inner wrapper keeps overflow:hidden for waifu + toolbar */
+  .nep-card-inner{
+    border-radius:22px;
+    overflow:hidden;
+  }
+
+  /* ── Window Controls (top right corner) ── */
+  .nep-win-controls{
+    position:absolute;top:8px;right:10px;z-index:50;
+    display:flex;gap:5px;align-items:center;
+  }
+  .nep-wbtn{
+    position:relative;
+    width:22px;height:22px;
+    border-radius:50%;
+    border:1px solid rgba(255,255,255,0.3);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    transition:all 0.15s ease;
+    background:rgba(255,255,255,0.12);
+    box-shadow:0 2px 8px rgba(0,0,0,0.18),inset 0 1px 0 rgba(255,255,255,0.45),inset 0 -1px 0 rgba(0,0,0,0.08);
+  }
+  .nep-wbtn svg{width:10px;height:10px;flex-shrink:0;transition:opacity 0.15s;}
+  .nep-wbtn-label{
+    position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
+    background:rgba(255,255,255,0.92);backdrop-filter:blur(10px);
+    border:1px solid rgba(190,150,230,0.5);border-radius:6px;
+    padding:2px 7px;font-size:9.5px;font-weight:600;white-space:nowrap;color:#3a1a6e;
+    pointer-events:none;opacity:0;transition:opacity 0.15s;
+    box-shadow:0 2px 8px rgba(100,50,200,0.15);
+  }
+  .nep-wbtn:hover .nep-wbtn-label{opacity:1;}
+  /* Button colors — keep white/pastel palette */
+  .nep-wbtn--mini{color:#f5c842;background:rgba(245,200,66,0.18);border-color:rgba(245,200,66,0.45);}
+  .nep-wbtn--mini .nep-wbtn-label{color:#7a5e00;}
+  .nep-wbtn--mini:hover{background:rgba(245,200,66,0.35);border-color:rgba(245,200,66,0.75);box-shadow:0 2px 12px rgba(245,200,66,0.3),inset 0 1px 0 rgba(255,255,255,0.5);}
+  .nep-wbtn--pin{color:#a78bfa;background:rgba(167,139,250,0.15);border-color:rgba(167,139,250,0.4);}
+  .nep-wbtn--pin .nep-wbtn-label{color:#4c1d95;}
+  .nep-wbtn--pin:hover{background:rgba(167,139,250,0.3);border-color:rgba(167,139,250,0.7);box-shadow:0 2px 12px rgba(167,139,250,0.3),inset 0 1px 0 rgba(255,255,255,0.5);}
+  .nep-wbtn--hide{color:#f87171;background:rgba(248,113,113,0.12);border-color:rgba(248,113,113,0.4);}
+  .nep-wbtn--hide .nep-wbtn-label{color:#7f1d1d;}
+  .nep-wbtn--hide:hover{background:rgba(248,113,113,0.28);border-color:rgba(248,113,113,0.7);box-shadow:0 2px 12px rgba(248,113,113,0.25),inset 0 1px 0 rgba(255,255,255,0.5);}
+  /* 3D press */
+  .nep-wbtn:active{
+    transform:scale(0.88) translateY(1px);
+    box-shadow:0 1px 3px rgba(0,0,0,0.25),inset 0 2px 4px rgba(0,0,0,0.15),inset 0 1px 0 rgba(0,0,0,0.06);
+    filter:brightness(0.88);
+  }
+  /* Pin active state */
+  .nep-wbtn--pin.active{background:rgba(167,139,250,0.38);border-color:rgba(167,139,250,0.85);color:#ede9fe;}
 
   /* Waifu area */
   .waifu-area{
@@ -382,7 +744,7 @@ const CARD_TEMPLATE = `
     background:transparent;
   }
 
-  /* Bubble wrapper — phía phải, ngang tầm miệng nhân vật */
+  /* Bubble wrapper — right side, level with character's mouth */
   #nep-bubble-wrap{
     position:absolute;
     bottom:65%;
@@ -400,7 +762,7 @@ const CARD_TEMPLATE = `
     transform:scale(1) translateX(0);
   }
 
-  /* Bong bóng vuông */
+  /* Square bubble */
   #nep-bubble{
     position:relative;
     padding:9px 11px;
@@ -413,7 +775,7 @@ const CARD_TEMPLATE = `
     word-break:break-word;
   }
 
-  /* Đuôi trỏ sang trái — từ miệng Nep ra bong bóng */
+  /* Tail pointing left — from Nep's mouth to the bubble */
   #nep-bubble::after{
     content:'';
     position:absolute;
@@ -453,37 +815,71 @@ const CARD_TEMPLATE = `
     border-top:1px solid rgba(255,255,255,0.12);
   }
   .nep-btn{
-    background:rgba(255,255,255,0.12);
-    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-    border:1px solid rgba(255,255,255,0.3);
+    background:rgba(255,255,255,0.1);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,0.28);
     border-radius:20px;padding:4px 9px;
     font-size:10.5px;color:#fff;cursor:pointer;
     font-weight:600;white-space:nowrap;
     display:flex;align-items:center;gap:3px;
-    transition:all 0.18s;flex-shrink:0;
-    box-shadow:0 2px 8px rgba(0,0,0,0.18),inset 0 1px 0 rgba(255,255,255,0.35),inset 0 -1px 0 rgba(0,0,0,0.12);
+    transition:all 0.18s ease;flex-shrink:0;
+    box-shadow:0 2px 10px rgba(0,0,0,0.15),inset 0 1px 0 rgba(255,255,255,0.45),inset 0 -1px 0 rgba(0,0,0,0.08);
     text-shadow:0 1px 3px rgba(0,0,0,0.35);
+    position:relative;overflow:hidden;
   }
-  .nep-btn:hover{background:rgba(255,255,255,0.24);transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.45);}
-  .nep-btn:active{transform:translateY(0);}
-  .nep-btn.green{border-color:rgba(120,230,120,0.45);color:#c8ffc8;}
-  .nep-btn.red{border-color:rgba(255,120,120,0.4);color:#ffc8c8;}
+  .nep-btn::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:50%;
+    background:linear-gradient(to bottom,rgba(255,255,255,0.18),transparent);
+    border-radius:20px 20px 0 0;pointer-events:none;
+  }
+  .nep-btn:hover{
+    background:rgba(255,255,255,0.22);
+    border-color:rgba(255,255,255,0.5);
+    transform:translateY(-2px);
+    box-shadow:0 5px 16px rgba(0,0,0,0.2),inset 0 1px 0 rgba(255,255,255,0.55);
+  }
+  /* 3D press */
+  .nep-btn:active{
+    transform:translateY(1px) scale(0.97);
+    box-shadow:0 1px 4px rgba(0,0,0,0.25),inset 0 3px 6px rgba(0,0,0,0.12),inset 0 1px 0 rgba(0,0,0,0.06);
+    background:rgba(255,255,255,0.07);
+    filter:brightness(0.9);
+    transition:all 0.06s ease;
+  }
+  .nep-btn.green{border-color:rgba(120,230,120,0.45);color:#c8ffc8;background:rgba(120,230,120,0.08);}
+  .nep-btn.green:hover{background:rgba(120,230,120,0.2);border-color:rgba(120,230,120,0.65);}
+  .nep-btn.red{border-color:rgba(255,120,120,0.4);color:#ffc8c8;background:rgba(255,120,120,0.07);}
+  .nep-btn.red:hover{background:rgba(255,120,120,0.2);border-color:rgba(255,120,120,0.65);}
 </style>
 
 <div class="nep-card" id="nepCard">
+  <div class="nep-win-controls">
+    <button class="nep-wbtn nep-wbtn--mini" id="btnMinimize" title="Mini">
+      <svg viewBox="0 0 14 14" fill="none"><rect x="2" y="6.5" width="10" height="1.5" rx="0.75" fill="currentColor"/></svg>
+      <span class="nep-wbtn-label" id="lblWinMini">Mini</span>
+    </button>
+    <button class="nep-wbtn nep-wbtn--pin" id="btnPin" title="Pin">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M9 2L12 5L8.5 6.5L7 9.5L5.5 8L3 10.5L2.5 11.5L3.5 11L6 8.5L7 10L10 8.5L11.5 5L9 2Z" fill="currentColor"/><line x1="5.5" y1="8" x2="2" y2="11.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <span class="nep-wbtn-label" id="lblWinPin">Pin</span>
+    </button>
+    <button class="nep-wbtn nep-wbtn--hide" id="btnHide" title="Hide">
+      <svg viewBox="0 0 14 14" fill="none"><line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span class="nep-wbtn-label" id="lblWinHide">Hide</span>
+    </button>
+  </div>
+  <div class="nep-card-inner">
   <div class="waifu-area" id="waifuArea">
     <div id="nep-bubble-wrap"><div id="nep-bubble"></div></div>
     <iframe id="nep-l2d-frame" scrolling="no" allowtransparency="true"></iframe>
     <span class="model-label" id="modelLabel"></span>
   </div>
   <div class="nep-toolbar">
-    <button class="nep-btn" id="btnSwitch">🔄 Đổi</button>
-    <button class="nep-btn" id="btnQuote">💬 Nói</button>
+    <button class="nep-btn" id="btnSwitchPrev">◀ Prev</button>
+    <button class="nep-btn" id="btnSwitchNext">▶ Next</button>
+    <button class="nep-btn" id="btnQuote">💬 Talk</button>
     <button class="nep-btn" id="btnSound">🔊 TTS</button>
     <button class="nep-btn" id="btnSensors">🔄 Reload</button>
-    <button class="nep-btn green" id="btnMinimize">📌 Mini</button>
-    <button class="nep-btn" id="btnPin">📍 Ghim</button>
-    <button class="nep-btn red" id="btnHide">❌ Ẩn</button>
+  </div>
   </div>
 </div>
 `;
@@ -495,30 +891,30 @@ class LiveDesk extends HTMLElement {
     this._shadow       = this.attachShadow({mode:'open'});
     this._hass         = null;
     this._config       = {};
-    // fix: restore nhân vật đã lưu sau reload
+    // fix: restore saved character index after reload
     this._modelIdx     = (() => { try { const s=localStorage.getItem('nep_modelIdx'); return s!==null?parseInt(s,10):0; } catch(e){return 0;} })();
     this._tipTimer     = null;
     this._lastStates   = {};
     this._floating     = false;
     this._floatEl      = null;
     this._floatTipTmr  = null;
-    this._pinned       = false;   // trạng thái ghim — hiện nhỏ đè lên mọi dashboard
+    this._pinned       = false;   // pinned state — show small overlay on top of all dashboards
     this._pinEl        = null;
     this._pinChatInterval = null;
     this._pinMouseMove = null;
-    this._statusMsgs   = [];   // danh sách trạng thái hiện tại
+    this._statusMsgs   = [];   // current status messages list
     this._statusIdx    = 0;
     this._statusInterval = null;
-    this._idleInterval   = null;  // fix: dọn được khi re-render
+    this._idleInterval   = null;  // fix: can be cleared on re-render
     // cache sensor values
     this._curTemp      = null;
     this._curHumid     = null;
     this._curWeather   = null;
     // ── Audio system ──────────────────────────────────────────
-    this._audio        = null;   // HTMLAudioElement hiện tại
-    this._modelSounds  = [];     // danh sách sound URL đã lấy từ model.json
-    this._ttsUtter     = null;   // SpeechSynthesisUtterance hiện tại
-    this._audioEnabled = true;   // toggle bật/tắt âm thanh
+    this._audio        = null;   // current HTMLAudioElement
+    this._modelSounds  = [];     // list of sound URLs fetched from model.json
+    this._ttsUtter     = null;   // current SpeechSynthesisUtterance
+    this._audioEnabled = true;   // audio enable/disable toggle
   }
 
   setConfig(config) { this._config = config; this._render(); }
@@ -530,11 +926,24 @@ class LiveDesk extends HTMLElement {
   // ── _render ──────────────────────────────────────────────────
   _render() {
     this._shadow.innerHTML = CARD_TEMPLATE;
+    // Apply i18n labels
+    const _tCard = (k, ...a) => _t(this._config, k, ...a);
+    this._shadow.getElementById('btnSwitchPrev').textContent = _tCard('btnPrev');
+    this._shadow.getElementById('btnSwitchNext').textContent = _tCard('btnNext');
+    this._shadow.getElementById('btnQuote').textContent      = _tCard('btnQuote');
+    this._shadow.getElementById('btnSound').textContent      = _tCard('btnSound');
+    this._shadow.getElementById('btnSensors').textContent    = _tCard('btnReload');
+    const lblMini = this._shadow.getElementById('lblWinMini');
+    const lblPin  = this._shadow.getElementById('lblWinPin');
+    const lblHide = this._shadow.getElementById('lblWinHide');
+    if (lblMini) lblMini.textContent = _tCard('winMini');
+    if (lblPin)  lblPin.textContent  = _tCard('winPin');
+    if (lblHide) lblHide.textContent = _tCard('winHide');
     const h = this._config.height || 440;
-    const w = this._config.width  || 400; // fix: dùng config thay vì hardcode
+    const w = this._config.width  || 400; // fix: use config instead of hardcode
     this._shadow.querySelector('.waifu-area').style.height = h + 'px';
 
-    // Apply card_blur — LUÔN chạy, inline style thắng CSS class
+    // Apply card_blur — always runs, inline style wins over CSS class
     {
       const _blur = (this._config.card_blur !== undefined) ? Number(this._config.card_blur) : 0;
       const _card = this._shadow.querySelector('.nep-card');
@@ -556,38 +965,42 @@ class LiveDesk extends HTMLElement {
     frame.style.cssText = 'width:100%;height:' + h + 'px;border:none;background:transparent;display:block;z-index:2;transition:margin-top 0.3s ease;';
     this._loadIntoFrame(frame, this._modelIdx, w, h, false);
 
-    this._shadow.getElementById('btnSwitch').onclick   = () => this._switchModel();
+    this._shadow.getElementById('btnSwitchPrev').onclick = () => this._switchModelPrev();
+    this._shadow.getElementById('btnSwitchNext').onclick = () => this._switchModel();
     this._shadow.getElementById('btnQuote').onclick    = () => { this._nepQuote(); };
     this._shadow.getElementById('btnSensors').onclick  = () => {
-      // Reload iframe nhân vật (fix blob URL bị mất sau navigate)
+      // Reload character iframe (fix: blob URL lost after navigation)
       const frame = this._shadow.getElementById('nep-l2d-frame');
       const h = this._config.height || 440;
       const w = this._config.width  || 400;
       if (frame) this._loadIntoFrame(frame, this._modelIdx, w, h, false);
-      // Reload thêm float iframe nếu đang nổi
+      // Also reload float iframe if floating
       if (this._floating) {
         const ff = document.getElementById('nep-float-iframe');
         const fh = this._config.float_height || 650;
         const fw = this._config.float_width  || 400;
         if (ff) this._loadIntoFrame(ff, this._modelIdx, fw, fh, true);
       }
-      // Reload thêm pin iframe nếu đang ghim
+      // Also reload pin iframe if pinned
       if (this._pinned) {
         const fp = document.getElementById('nep-pin-iframe');
         const fh = this._config.float_height || 650;
         const fw = this._config.float_width  || 400;
         if (fp) this._loadIntoFrame(fp, this._modelIdx, fw, fh, true);
       }
-      this._pushStatus(`${this._cn()} reload xong rồi nha~ 🔄`, true);
+      this._pushStatus(_t(this._config, 'reloadMsg', this._cn()), true);
     };
     this._shadow.getElementById('btnMinimize').onclick = () => this._enterFloating();
     const btnPin = this._shadow.getElementById('btnPin');
-    btnPin.onclick = () => this._togglePin();
-    // Restore trạng thái ghim khi render (visual feedback)
+    btnPin.onclick = () => {
+      this._togglePin();
+      btnPin.classList.toggle('active', this._pinned);
+    };
+    // Restore pin state on render (visual feedback)
     try { if (localStorage.getItem('nep_pinned') === '1') {
-      btnPin.textContent = '📍 Bỏ ghim'; btnPin.classList.add('green');
+      btnPin.classList.add('active');
     }} catch(e){}
-    // Nút 🔊 toggle âm thanh bật/tắt
+    // 🔊 Button: toggle audio on/off
     const btnSound = this._shadow.getElementById('btnSound');
     btnSound.onclick = () => {
       this._audioEnabled = !this._audioEnabled;
@@ -595,19 +1008,19 @@ class LiveDesk extends HTMLElement {
       else                     { btnSound.textContent = '🔊 TTS'; btnSound.classList.remove('red'); btnSound.classList.add('green'); }
     };
     this._shadow.getElementById('btnHide').onclick     = () => {
-      this._pushStatus(`${this._cn()} đi rồi nha~ 💜👋 Nhớ ${this._cn()} nghen!`, true);
+      this._pushStatus(_t(this._config, 'hideMsg', this._cn()), true);
       setTimeout(() => { this._shadow.querySelector('.nep-card').style.display='none'; }, 1500);
     };
 
     this._initGlobalHover();
-    // fix: clear trước khi tạo mới, tránh chồng timer khi setConfig gọi lại _render
+    // fix: clear before creating new timer to avoid duplication when setConfig re-triggers _render
     if (this._idleInterval) clearInterval(this._idleInterval);
     this._idleInterval = setInterval(() => this._idleQuote(), 45000);
     this._startStatusRotation();
     setTimeout(() => this._greet(), 3000);
-    // fix: restore trạng thái mini sau reload — chạy sớm hơn greet để overlay có sẵn
+    // fix: restore mini/float state after reload — runs before greet so overlay is ready
     try { if (localStorage.getItem('nep_floating') === '1') setTimeout(() => this._enterFloating(), 500); } catch(e){}
-    // fix: restore trạng thái ghim sau reload
+    // fix: restore pinned state after reload
     try { if (localStorage.getItem('nep_pinned') === '1') setTimeout(() => this._enterPin(), 600); } catch(e){}
 
     // Listen for auto-clip message from iframe canvas detection
@@ -631,7 +1044,7 @@ class LiveDesk extends HTMLElement {
     }
   }
 
-  // ── Load model vào iframe ────────────────────────────────────
+  // ── Load model into iframe ────────────────────────────────────
   _loadIntoFrame(frame, idx, w, h, isFloat) {
     const m = MODELS[idx];
     const lbl = this._shadow.getElementById('modelLabel');
@@ -643,42 +1056,38 @@ class LiveDesk extends HTMLElement {
 
     frame.onload = () => {
       URL.revokeObjectURL(url);
-      // Tải danh sách sound ngay khi model load xong
+      // Load sound list as soon as model loads
       this._loadModelSounds(idx);
       try {
         const doc = frame.contentDocument;
         doc.addEventListener('click', () => {
-          const tips = [`Đừng chọc ${this._cn()} nha! ${this._cn()} giận rồi đó! (≧∇≦)`,
-            `Ủa, sờ ${this._cn()} hồi nào vậy? (ó﹏ò｡)`,
-            'Hí hí~ Nhột lắm á! 💜',`Cù lét! ${this._cn()} hổng chịu đâu nha! >///<`,
-            `${this._cn()} ${this._cn()}~ Thương ${this._cn()} hông? 💜`,
-            `Ôi trời ơi, chọc ${this._cn()} hoài vậy ta! 😳`,
-            `${this._cn()} mắc cỡ quá hà~ >///<`];
+          const tips = _t(this._config, 'charClickTips', this._cn());
           const msg = this._rand(tips);
           if (isFloat) this._floatTip(msg, 3000);
           else         this._pushStatus(msg, true);
-          // Phát âm thanh khi click nhân vật
+          // Play audio when character is clicked
           this._playAudio(msg.replace(/[^\p{L}\p{N}\s]/gu, ''));
         });
         doc.addEventListener('dblclick', () => { if (this._floating) this._exitFloating(); });
       } catch(e){}
     };
-    frame.onerror = () => URL.revokeObjectURL(url); // fix: tránh leak nếu onload không fire
+    frame.onerror = () => URL.revokeObjectURL(url); // fix: avoid leak if onload doesn't fire
     frame.src = url;
     setTimeout(() => {
-      // fix: nếu vừa đổi nhân vật (_skipGreetingPush), bỏ qua _pushStatus
-      // vì greeting đã được hiện trực tiếp trong _switchModel để không làm lệch pool
+      // fix: if character just switched (_skipGreetingPush), skip _pushStatus
+      // because greeting was already shown directly in _switchModel to avoid pool drift
       if (this._skipGreetingPush) { this._skipGreetingPush = false; return; }
-      this._pushStatus(m.greeting, true);
+      const _greetMsg = _getLang(this._config) === 'en' && m.greeting_en ? m.greeting_en : m.greeting;
+      this._pushStatus(_greetMsg, true);
     }, 2400);
   }
 
-  // ── Global hover: theo dõi TẤT CẢ card trên dashboard ───────
+  // ── Global hover: track ALL cards on dashboard ───────
   _initGlobalHover() {
-    if (window._nepGlobalHoverInit) return; // chỉ inject 1 lần
+    if (window._nepGlobalHoverInit) return; // inject only once
     window._nepGlobalHoverInit = true;
 
-    // Tạo tooltip element cố định trong document
+    // Create persistent tooltip element in document
     const tip = document.createElement('div');
     tip.id = '_nep_dev_tip';
     tip.style.cssText = [
@@ -700,14 +1109,14 @@ class LiveDesk extends HTMLElement {
     let hideTimer  = null;
     let lastEntity = null;
 
-    // Dùng composedPath() để lấy TOÀN BỘ chain xuyên shadow DOM
+    // Use composedPath() to traverse the full chain across shadow DOM
     const extractEntity = (e) => {
       const path = e.composedPath ? e.composedPath() : [];
 
       for (const el of path) {
         if (!el || el === document || el === window) continue;
 
-        // 1. Property _config.entity (HA card element chuẩn)
+        // 1. _config.entity property (standard HA card element)
         try {
           if (el._config?.entity)        return el._config.entity;
           if (el._config?.entities?.[0]) return el._config.entities[0];
@@ -715,7 +1124,7 @@ class LiveDesk extends HTMLElement {
           if (el.__config?.entity)       return el.__config.entity;
         } catch(e){}
 
-        // 2. Attribute trực tiếp
+        // 2. Direct attribute
         try {
           const a = el.getAttribute?.('data-entity-id')
                  || el.getAttribute?.('entity-id')
@@ -723,17 +1132,17 @@ class LiveDesk extends HTMLElement {
           if (a) return a;
         } catch(e){}
 
-        // 3. Tag name chứa entity (vd: hui-entity-row có stateObj)
+        // 3. Tag name containing entity (e.g. hui-entity-row has stateObj)
         try {
           if (el.stateObj?.entity_id)    return el.stateObj.entity_id;
           if (el._stateObj?.entity_id)   return el._stateObj.entity_id;
           if (el.entity?.entity_id)      return el.entity.entity_id;
         } catch(e){}
 
-        // 4. Tìm trong innerHTML của element (vd: data-entity trong text)
+        // 4. Search in element properties (e.g. data-entity in custom elements)
         try {
           if (el.tagName && el.tagName.includes('-')) {
-            // Custom element — thử các property phổ biến của HA
+            // Custom element — try common HA properties
             const props = ['entityId','entity_id','_entityId'];
             for (const p of props) {
               if (el[p] && typeof el[p] === 'string' && el[p].includes('.')) return el[p];
@@ -744,10 +1153,10 @@ class LiveDesk extends HTMLElement {
       return null;
     };
 
-    // Hàm hiển thị tooltip + Nep bubble
+    // Show tooltip + Nep bubble
     const showFor = (entityId, clientX, clientY) => {
       if (!this._hass) return;
-      const dev    = detectDevice(entityId, this._hass);
+      const dev    = detectDevice(entityId, this._hass, _getLang(this._config));
       const fname  = dev.friendlyName || entityId.split('.')[1]?.replace(/_/g,' ') || entityId;
       const state  = this._hass.states[entityId];
       const stVal  = state?.state || '';
@@ -763,7 +1172,7 @@ class LiveDesk extends HTMLElement {
 
       if (entityId !== lastEntity) {
         lastEntity = entityId;
-        const name = this._config.name || 'bạn';
+        const name = this._config.name || (_getLang(this._config) === 'en' ? 'you' : 'bạn');
         this._pushStatus(dev.nep(name, fname).replace('{c}', this._cn()), true);
       }
     };
@@ -771,7 +1180,7 @@ class LiveDesk extends HTMLElement {
     document.addEventListener('mousemove', (e) => {
       clearTimeout(hideTimer);
 
-      // Bỏ qua nếu chuột đang trong card của Nep
+      // Ignore if cursor is inside Nep's card
       if (this.contains(e.target) || this.shadowRoot?.contains(e.target)) {
         tip.style.opacity = '0';
         lastEntity = null;
@@ -789,9 +1198,9 @@ class LiveDesk extends HTMLElement {
       }
     });
 
-    // Debug helper: gõ nepDebug() trong console để xem path khi di chuột
+    // Debug helper: type nepDebug() in console to inspect path on mouseover
     window.nepDebug = () => {
-      console.log('[NepDebug] Đang bật debug — di chuột qua card khác...');
+      console.log('[NepDebug] Debug mode ON — move cursor over other cards...');
       const dbg = (e) => {
         const path = e.composedPath ? e.composedPath() : [];
         const found = path.map((el,i) => {
@@ -799,21 +1208,21 @@ class LiveDesk extends HTMLElement {
           const cfg = el._config || el.config || el.__config;
           return cfg?.entity ? `[${i}] ${el.tagName||'?'} → ${cfg.entity}` : null;
         }).filter(Boolean);
-        if (found.length) console.log('[NepDebug] Entity tìm thấy:', found);
-        else console.log('[NepDebug] Không tìm thấy entity trong path:', path.map(el=>el?.tagName||el).slice(0,8));
+        if (found.length) console.log('[NepDebug] Entity found:', found);
+        else console.log('[NepDebug] Entity not found in path:', path.map(el=>el?.tagName||el).slice(0,8));
       };
       document.addEventListener('mousemove', dbg);
-      setTimeout(()=>{document.removeEventListener('mousemove',dbg);console.log('[NepDebug] Tắt debug.');},15000);
+      setTimeout(()=>{document.removeEventListener('mousemove',dbg);console.log('[NepDebug] Debug OFF.');},15000);
     };
   }
   _switchModel() {
     this._modelIdx = (this._modelIdx + 1) % MODELS.length;
     this._stopAudio();
     this._modelSounds = [];
-    // fix: lưu nhân vật vào localStorage để reload vẫn giữ
+    // fix: save character to localStorage so it persists on reload
     try { localStorage.setItem('nep_modelIdx', this._modelIdx); } catch(e){}
-    // fix: tách riêng việc hiện greeting khỏi _pushStatus để không làm lệch pool;
-    // dùng cờ _skipGreetingPush để _loadIntoFrame không gọi _pushStatus lần này
+    // fix: decouple greeting display from _pushStatus to avoid pool drift;
+    // use _skipGreetingPush flag so _loadIntoFrame skips _pushStatus this time
     this._skipGreetingPush = true;
 
     if (this._floating) {
@@ -828,27 +1237,60 @@ class LiveDesk extends HTMLElement {
       this._loadIntoFrame(frame, this._modelIdx, w, h, false);
     }
 
-    // Hiện greeting ngay, sau đó build pool đầy đủ và bắt đầu rotate từ câu kế
-    const greeting = MODELS[this._modelIdx].greeting;
+    // Show greeting immediately, then build full pool and start rotating from next message
+    const _m = MODELS[this._modelIdx];
+    const greeting = _getLang(this._config) === 'en' && _m.greeting_en ? _m.greeting_en : _m.greeting;
     this._showBubble(greeting);
     setTimeout(() => {
       this._statusMsgs = this._buildStatusMessages();
-      // Đảm bảo greeting ở đầu pool để vòng đầu bắt đầu sau greeting
+      // Ensure greeting is at head of pool so first cycle starts after greeting
       const gi = this._statusMsgs.indexOf(greeting);
       if (gi > 0) { this._statusMsgs.splice(gi, 1); this._statusMsgs.unshift(greeting); }
       else if (gi === -1) this._statusMsgs.unshift(greeting);
-      this._statusIdx = 0; // idx=0 là greeting đang hiện; interval sẽ increment lên 1
+      this._statusIdx = 0; // idx=0 is the current greeting; interval will increment to 1
     }, 100);
   }
 
-  // ── Status rotation (bubble đổi mỗi 5s) ─────────────────────
+  // ── Switch to previous character (◀ button) ────────────────────────
+  _switchModelPrev() {
+    this._modelIdx = (this._modelIdx - 1 + MODELS.length) % MODELS.length;
+    this._stopAudio();
+    this._modelSounds = [];
+    try { localStorage.setItem('nep_modelIdx', this._modelIdx); } catch(e){}
+    this._skipGreetingPush = true;
+
+    if (this._floating) {
+      const ff = document.getElementById('_nep_float_frame');
+      if (ff) { const fh=this._config.float_height||650,fw=this._config.float_width||400; this._loadIntoFrame(ff,this._modelIdx,fw,fh,true); }
+      this._floatChatMsgs = this._buildStatusMessages();
+      this._floatChatIdx  = 0;
+    } else {
+      const frame = this._shadow.getElementById('nep-l2d-frame');
+      const h = this._config.height || 440;
+      const w = this._config.width  || 400;
+      this._loadIntoFrame(frame, this._modelIdx, w, h, false);
+    }
+
+    const _mp = MODELS[this._modelIdx];
+    const greeting = _getLang(this._config) === 'en' && _mp.greeting_en ? _mp.greeting_en : _mp.greeting;
+    this._showBubble(greeting);
+    setTimeout(() => {
+      this._statusMsgs = this._buildStatusMessages();
+      const gi = this._statusMsgs.indexOf(greeting);
+      if (gi > 0) { this._statusMsgs.splice(gi, 1); this._statusMsgs.unshift(greeting); }
+      else if (gi === -1) this._statusMsgs.unshift(greeting);
+      this._statusIdx = 0;
+    }, 100);
+  }
+
+  // ── Status rotation (bubble changes every 5s) ─────────────────────
   _startStatusRotation() {
     clearInterval(this._statusInterval);
     this._statusInterval = setInterval(() => {
       if (this._floating) return;
-      // Pool rỗng → chờ _greet init, không làm gì
+      // Empty pool → wait for _greet init, do nothing
       if (!this._statusMsgs.length) return;
-      // Tăng idx; hết vòng → rebuild pool mới (cập nhật sensor/câu mới)
+      // Increment idx; end of cycle → rebuild fresh pool (with latest sensor/message data)
       this._statusIdx++;
       if (this._statusIdx >= this._statusMsgs.length) {
         this._statusMsgs = this._buildStatusMessages();
@@ -858,11 +1300,11 @@ class LiveDesk extends HTMLElement {
     }, 5000);
   }
 
-  // Thêm message vào queue và hiện ngay
+  // Add message to queue and show immediately
   _pushStatus(msg, immediate = false) {
     if (!this._statusMsgs.includes(msg)) {
       this._statusMsgs.push(msg);
-      if (this._statusMsgs.length > 20) this._statusMsgs.shift(); // fix: giới hạn 20 msg
+      if (this._statusMsgs.length > 20) this._statusMsgs.shift(); // fix: cap at 20 messages
     }
     if (immediate) {
       this._statusIdx = this._statusMsgs.indexOf(msg);
@@ -878,7 +1320,7 @@ class LiveDesk extends HTMLElement {
     setTimeout(() => {
       b.innerHTML = html;
       wrap.classList.add('show');
-      // Phát âm thanh khi bubble hiện (chỉ nếu có sound file; TTS không tự đọc idle để tránh spam)
+      // Play audio when bubble appears (only if sound file present; TTS skips idle to avoid spam)
       const m = MODELS[this._modelIdx];
       if (m?.hasSound && this._modelSounds.length > 0) {
         this._playModelSound();
@@ -886,7 +1328,7 @@ class LiveDesk extends HTMLElement {
     }, 160);
   }
 
-  // Bubble cũ - vẫn dùng cho float và urgent
+  // Legacy bubble — still used for float and urgent messages
   showTip(html, ms = 4000) {
     this._pushStatus(html, true);
     clearTimeout(this._tipTimer);
@@ -897,7 +1339,7 @@ class LiveDesk extends HTMLElement {
     }, ms);
   }
 
-  // ── Float bubble (urgent/click tip — hiện ở thanh controls) ─
+  // ── Float bubble (urgent/click tip — shown in controls bar) ─
   _floatTip(html, ms = 4000) {
     clearTimeout(this._floatTipTmr);
     const b = document.getElementById('_nep_float_bubble');
@@ -905,11 +1347,11 @@ class LiveDesk extends HTMLElement {
     b.innerHTML = html;
     b.classList.add('show');
     this._floatTipTmr = setTimeout(() => b.classList.remove('show'), ms);
-    // Đồng thời hiện lên bubble chat của nhân vật
+    // Also show in character's chat bubble
     if (this._floatChatShow) this._floatChatShow(html);
   }
 
-  // ── Quotes riêng theo nhân vật — dùng chung cho idle và nút 💬 ──
+  // ── Character-specific quotes — shared between idle and 💬 button ──
   _getCharQuotes(name, model, charName) {
     charName = charName || this._config.char_nickname?.trim() || model?.name?.replace(/\s*[^\w\s].*/u, '').trim() || 'Nep';
     const mn = model?.name || '';
@@ -1000,94 +1442,186 @@ class LiveDesk extends HTMLElement {
         `Potion của Tia là số một! ${name} hãy tin tưởng Tia nhé~ 🧪`,
         `Tia đang canh nhà cho ${name} đây, đừng lo lắng gì hết nha~ 🛡️`,
       ],
+      'HK416 Normal 🎯': [
+        `HK416 báo cáo! ${name} có lệnh gì không? 🎯`,
+        `Nhiệm vụ canh nhà cho ${name} — HK416 nhận! 🎯`,
+        `${name} ơi, HK416 luôn sẵn sàng bảo vệ bạn nha~ 🛡️`,
+        `Kỷ luật là trên hết! ${name} cũng phải uống nước đúng giờ đó nghen~`,
+        `HK416 kiểm tra cảm biến nhà xong rồi, mọi thứ ổn ${name} ơi~ ✅`,
+        `Đừng để HK416 phải nhắc hai lần — nghỉ ngơi đi nha ${name}! 😤`,
+        `${name}, có HK416 đây rồi, yên tâm mà làm việc đi~ 🎯`,
+      ],
+      'HK416 Destroy 💥': [
+        `...Vẫn còn chiến được. ${name} đừng lo cho HK416 nha~ 💥`,
+        `Dù thế nào, HK416 cũng không bỏ cuộc! ${name} cũng vậy nha~ 💪`,
+        `${name} ơi... lúc khó khăn nhất mới thấy ai thật sự mạnh~ 💥`,
+        `HK416 vẫn đang canh nhà đây! Damage chỉ là số thôi~ 😤`,
+        `${name}, cùng đứng dậy sau mỗi lần ngã nha? HK416 tin bạn! 🔥`,
+        `Chiến đấu đến hơi thở cuối cùng — đó là phong cách HK416! 💥`,
+      ],
+      'UMP45 🔫': [
+        `UMP45 đây~ ${name} cần canh chừng gì không? 🔫`,
+        `${name} ơi, để UMP45 lo phần bảo vệ, bạn cứ nghỉ ngơi đi nha~`,
+        `Nhà thông minh + UMP45 = an toàn tuyệt đối! 🔫🏠`,
+        `${name}, UMP45 thích kiểu nhà có nhiều cảm biến lắm, xịn ghê~ 😊`,
+        `UMP45 canh nhà nghiêm túc lắm đó ${name}~ Đừng lo gì hết!`,
+        `${name} ơi, uống nước chưa? UMP45 nhắc đó nghen~ 💧🔫`,
+        `Không có gì qua mắt UMP45 được đâu ${name} ơi! 👁️🔫`,
+      ],
+      'M4A1 🛡️': [
+        `M4A1 xin chào ${name}! Nhiệm vụ hôm nay có gì không? 🛡️`,
+        `${name} ơi, M4A1 luôn đặt nhiệm vụ lên hàng đầu~ 🎯`,
+        `Nhà này có M4A1 bảo vệ, ${name} yên tâm hoàn toàn nha! 🛡️`,
+        `${name}, M4A1 đang phân tích dữ liệu cảm biến... mọi thứ ổn! ✅`,
+        `Dù khó đến đâu, M4A1 cũng sẽ hoàn thành nhiệm vụ! ${name} tin không? 🛡️`,
+        `${name} ơi, nghỉ ngơi đi — M4A1 trực chiến 24/7 cho bạn~ 💪`,
+        `M4A1 nhắc ${name}: uống nước và ăn đúng giờ là nhiệm vụ quan trọng! 🌿`,
+      ],
+      'SOPMOD-II 🔥': [
+        `SOPMOD đây!! ${name} muốn xem mình bắn không? 🔥`,
+        `${name} ơi, SOPMOD thích nhà có nhiều thiết bị lắm, như bãi tập vậy! 🔥`,
+        `Yeahhh! Cảm biến báo động là SOPMOD khoái nhất đó ${name}~ 💥`,
+        `${name}, đừng buồn nha! SOPMOD sẽ làm mọi thứ vui hơn liền~ 🎉`,
+        `SOPMOD canh nhà kiểu riêng — ồn ào nhưng hiệu quả! ${name} biết không? 🔥`,
+        `${name} ơi SOPMOD nhớ bạn ghê~ Bấm vào chơi với mình đi! 🥳`,
+        `Nổ hay không nổ — câu hỏi duy nhất của SOPMOD! ${name} chọn đi nào~ 💥🔥`,
+      ],
+      'WA2000 Destroy 🌹': [
+        `...${name}. WA2000 đang ở đây. Đừng nhìn như vậy! 🌹`,
+        `Hmph! WA2000 vẫn ổn, chỉ là... hơi xây xát thôi. Đừng lo! 🌹`,
+        `${name} ơi... WA2000 không cần ai thương đâu nha. Thiệt đó! (*/ω＼*)`,
+        `Dù sao thì WA2000 vẫn canh nhà cho ${name} tốt nhất! 🌹🛡️`,
+        `${name}... cảm ơn vì đã ở đây. Chỉ vậy thôi. Đừng hiểu lầm nha! 🌹`,
+        `WA2000 không yếu đâu! Chỉ là... hôm nay vất vả hơn chút xíu~ 💪🌹`,
+        `${name} ơi, WA2000 nhắc uống nước đó. Sức khỏe quan trọng hơn niềm kiêu hãnh~ 🌹`,
+      ],
     };
-    byModel['Tia 🧪'] = [
-        `${name} ơi, Tia có loại potion đặc biệt nè~ uống vào thông minh hơn liền! 🧪`,
-        `Tia đang nghiên cứu công thức mới á~ ${name} thử không? ✨`,
-        `Nhà thông minh thật sự, Tia cũng muốn có một căn như vậy~ 💜`,
-        `${name} ơi, Tia thấy cảm biến nhà mình xịn lắm đó! 🏠`,
-        `Tia sẽ pha cho ${name} ly potion hôm nay nha~ 🌸`,
-        `Pio bảo Tia phải chào hỏi lịch sự hơn... Xin chào ${name}! 😊`,
-        `Potion của Tia là số một! ${name} hãy tin tưởng Tia nhé~ 🧪`,
-        `Tia đang canh nhà cho ${name} đây, đừng lo lắng gì hết nha~ 🛡️`,
-      ];
-    // Trả về quotes của nhân vật hiện tại, fallback về Neptune nếu không có
+    // Return current character's quotes, fallback to Neptune if not found
     return byModel[mn] || byModel['Neptune 💜'] || [];
   }
 
-  // ── Xây danh sách status messages từ sensor hiện tại ─────────
+  // ── Build status message list from current sensor data ─────────
   _buildStatusMessages() {
-    const name  = this._config.name || 'bạn';
+    const name  = this._config.name || (_getLang(this._config) === 'en' ? 'you' : 'bạn');
     const model = MODELS[this._modelIdx];
     const msgs  = [];
     const h     = new Date().getHours();
+    const isEN  = _getLang(this._config) === 'en';
 
-    // ── Lời chào theo buổi — tự nhận diện theo nhân vật ──────────
-    const charName = this._config.char_nickname?.trim() || model?.name?.replace(/\s*[^\w\s].*/u, '').trim() || 'Nep'; // lấy tên trước emoji (ưu tiên char_nickname từ config)
-    const greetingPool =
-      h>=5&&h<7   ? [
-        `Chào buổi sáng sớm ${name}~ Dậy sớm dữ vậy ta! ☀️`,
-        `Ôi ${name} dậy sớm quá trời! ${charName} cũng vừa thức nè~ 🌅`,
-      ] :
-      h>=7&&h<11  ? [
-        `Chào buổi sáng ${name}~ Bữa nay trời đẹp hen! 🌤️`,
-        `${name} ơi, ăn sáng chưa? Đừng bỏ bữa nha nghen~ 🍜`,
-        `Sáng rồi ${name} ơi! ${charName} chào bạn nè~ `,
-      ] :
-      h>=11&&h<13 ? [
-        `Chào buổi trưa ${name}~ Ăn cơm chưa hay nhịn đói vậy? 🍱`,
-        `Trưa rồi ${name} ơi! Nghỉ ngơi chút đi nha~ 😴`,
-        `${name} ơi, nắng trưa nóng lắm đó! Ở nhà thôi nghen~ ☀️`,
-      ] :
-      h>=13&&h<17 ? [
-        `Chào buổi chiều ${name}~ Uống nước chưa nè? ☕`,
-        `${name} ơi chiều rồi đó! Làm việc vừa thôi nha~`,
-        `Chiều mát mẻ rồi hen ${name}~ Dễ chịu quá trời! ⛅`,
-      ] :
-      h>=17&&h<20 ? [
-        `Chào buổi tối ${name}~ Ăn cơm chưa vậy? 🌅`,
-        `${name} ơi, tối rồi! Ăn cơm rồi nghỉ ngơi nha~ 🌙`,
-        `Chiều tối rồi ${name} ơi, hôm nay có mệt không nè?`,
-      ] :
-      h>=20&&h<23 ? [
-        `Tối rồi ${name}~ Sắp ngủ chưa nè? 🌙`,
-        `${name} ơi, khuya rồi đó! ${charName} nhắc ngủ sớm nghen~ 😴`,
-        `Đêm rồi ${name} ơi~ ${charName} canh nhà cho bạn yên giấc nha`,
-      ] : [
-        `Khuya dữ vậy ${name}~ Đi ngủ đi nha thôi! 😴`,
-        `${name} ơi, mấy giờ rồi biết hông? Ngủ mau đi nè! 🌙`,
-        `Ủa khuya quá vậy mà ${name} vẫn chưa ngủ? ${charName} lo quá hà~`,
-      ];
+    const charName = this._config.char_nickname?.trim() || model?.name?.replace(/\s*[^\w\s].*/u, '').trim() || 'Nep';
+
+    let greetingPool;
+    if (isEN) {
+      greetingPool =
+        h>=5&&h<7   ? [
+          `Good early morning ${name}~ You're up so early! ☀️`,
+          `Oh, ${name} is up early! ${charName} just woke up too~ 🌅`,
+        ] :
+        h>=7&&h<11  ? [
+          `Good morning ${name}~ Beautiful day today! 🌤️`,
+          `${name}, did you have breakfast? Don't skip meals~ 🍜`,
+          `Morning ${name}! ${charName} says hi~ `,
+        ] :
+        h>=11&&h<13 ? [
+          `Good noon ${name}~ Have you eaten yet? 🍱`,
+          `It's lunchtime ${name}! Take a little break~ 😴`,
+          `${name}, it's hot at noon! Stay inside~ ☀️`,
+        ] :
+        h>=13&&h<17 ? [
+          `Good afternoon ${name}~ Have you had water? ☕`,
+          `${name}, it's afternoon! Don't overwork~`,
+          `Nice afternoon ${name}~ So comfortable! ⛅`,
+        ] :
+        h>=17&&h<20 ? [
+          `Good evening ${name}~ Have you eaten? 🌅`,
+          `${name}, it's evening! Eat and rest~ 🌙`,
+          `Evening ${name}, are you tired today?`,
+        ] :
+        h>=20&&h<23 ? [
+          `Evening ${name}~ Getting sleepy? 🌙`,
+          `${name}, it's getting late! ${charName} says sleep early~ 😴`,
+          `Night ${name}~ ${charName} is guarding while you sleep`,
+        ] : [
+          `It's so late ${name}~ Go to bed! 😴`,
+          `${name}, do you know what time it is? Sleep now! 🌙`,
+          `Still awake this late ${name}? ${charName} is worried~`,
+        ];
+    } else {
+      greetingPool =
+        h>=5&&h<7   ? [
+          `Chào buổi sáng sớm ${name}~ Dậy sớm dữ vậy ta! ☀️`,
+          `Ôi ${name} dậy sớm quá trời! ${charName} cũng vừa thức nè~ 🌅`,
+        ] :
+        h>=7&&h<11  ? [
+          `Chào buổi sáng ${name}~ Bữa nay trời đẹp hen! 🌤️`,
+          `${name} ơi, ăn sáng chưa? Đừng bỏ bữa nha nghen~ 🍜`,
+          `Sáng rồi ${name} ơi! ${charName} chào bạn nè~ `,
+        ] :
+        h>=11&&h<13 ? [
+          `Chào buổi trưa ${name}~ Ăn cơm chưa hay nhịn đói vậy? 🍱`,
+          `Trưa rồi ${name} ơi! Nghỉ ngơi chút đi nha~ 😴`,
+          `${name} ơi, nắng trưa nóng lắm đó! Ở nhà thôi nghen~ ☀️`,
+        ] :
+        h>=13&&h<17 ? [
+          `Chào buổi chiều ${name}~ Uống nước chưa nè? ☕`,
+          `${name} ơi chiều rồi đó! Làm việc vừa thôi nha~`,
+          `Chiều mát mẻ rồi hen ${name}~ Dễ chịu quá trời! ⛅`,
+        ] :
+        h>=17&&h<20 ? [
+          `Chào buổi tối ${name}~ Ăn cơm chưa vậy? 🌅`,
+          `${name} ơi, tối rồi! Ăn cơm rồi nghỉ ngơi nha~ 🌙`,
+          `Chiều tối rồi ${name} ơi, hôm nay có mệt không nè?`,
+        ] :
+        h>=20&&h<23 ? [
+          `Tối rồi ${name}~ Sắp ngủ chưa nè? 🌙`,
+          `${name} ơi, khuya rồi đó! ${charName} nhắc ngủ sớm nghen~ 😴`,
+          `Đêm rồi ${name} ơi~ ${charName} canh nhà cho bạn yên giấc nha`,
+        ] : [
+          `Khuya dữ vậy ${name}~ Đi ngủ đi nha thôi! 😴`,
+          `${name} ơi, mấy giờ rồi biết hông? Ngủ mau đi nè! 🌙`,
+          `Ủa khuya quá vậy mà ${name} vẫn chưa ngủ? ${charName} lo quá hà~`,
+        ];
+    }
     const greeting = this._rand(greetingPool);
     msgs.push(greeting);
 
-    // Nhiệt độ
+    // Select sensor reaction table based on language
+    const SR = isEN ? SENSOR_REACTIONS_EN : SENSOR_REACTIONS;
+    const AM = isEN ? ALERT_MSGS_EN       : ALERT_MSGS;
+
+    // Temperature
     if (this._curTemp !== null) {
-      const r = SENSOR_REACTIONS.temp.find(x => this._curTemp <= x.max);
+      const r = SR.temp.find(x => this._curTemp <= x.max);
       if (r) msgs.push(r.msg.replace('{v}', this._curTemp).replace('{n}', name).replace('{c}', this._cn()));
     }
 
-    // Độ ẩm
+    // Humidity
     if (this._curHumid !== null) {
-      const r = SENSOR_REACTIONS.humid.find(x => this._curHumid <= x.max);
+      const r = SR.humid.find(x => this._curHumid <= x.max);
       if (r) msgs.push(r.msg.replace('{v}', this._curHumid).replace('{n}', name).replace('{c}', this._cn()));
     }
 
-    // Thời tiết
+    // Weather
     if (this._curWeather) {
-      const info = SENSOR_REACTIONS.weather[this._curWeather];
+      const info = SR.weather[this._curWeather];
       if (info) msgs.push(info.msg.replace('{c}', this._cn()));
     }
 
-    // Câu nhắc theo buổi + nhiệt độ kết hợp (câu đặc biệt)
+    // Time-of-day reminders combined with temperature
     if (this._curTemp !== null) {
       const t = this._curTemp;
-      if (h>=11&&h<13 && t>30) msgs.push(`${name} ơi, trưa nóng ${t}°C rồi! Nhớ uống nước nhiều vô nha~ 💧`);
-      if (h>=7&&h<11  && t>30) msgs.push(`Buổi sáng mà đã ${t}°C rồi ${name} ơi, hôm nay nóng dữ ghê~`);
-      if (h>=17&&h<20 && t>30) msgs.push(`Chiều tối ${t}°C vẫn còn nóng ${name} ơi, bật quạt lên đi nha~`);
+      if (isEN) {
+        if (h>=11&&h<13 && t>30) msgs.push(`${name}, it's ${t}°C at noon! Remember to drink plenty of water~ 💧`);
+        if (h>=7&&h<11  && t>30) msgs.push(`Already ${t}°C this morning ${name}, going to be a hot one~`);
+        if (h>=17&&h<20 && t>30) msgs.push(`Still ${t}°C in the evening ${name}, turn on the fan~`);
+      } else {
+        if (h>=11&&h<13 && t>30) msgs.push(`${name} ơi, trưa nóng ${t}°C rồi! Nhớ uống nước nhiều vô nha~ 💧`);
+        if (h>=7&&h<11  && t>30) msgs.push(`Buổi sáng mà đã ${t}°C rồi ${name} ơi, hôm nay nóng dữ ghê~`);
+        if (h>=17&&h<20 && t>30) msgs.push(`Chiều tối ${t}°C vẫn còn nóng ${name} ơi, bật quạt lên đi nha~`);
+      }
     }
 
-    // ── Xen 2-3 câu giới thiệu nhân vật vào pool (không trùng nhau) ──
+    // Interleave 2-3 character intro quotes into the pool
     const charQuotes = this._getCharQuotes(name, model);
     if (charQuotes.length) {
       const picked = [];
@@ -1095,9 +1629,8 @@ class LiveDesk extends HTMLElement {
       for (const q of shuffled) {
         if (!msgs.includes(q)) { picked.push(q); if (picked.length >= 3) break; }
       }
-      // Xen vào các vị trí cách đều trong pool để không dồn cục
       picked.forEach((q, i) => {
-        const pos = Math.min(msgs.length, 1 + i * 2); // sau greeting, cách nhau ~2 slot
+        const pos = Math.min(msgs.length, 1 + i * 2);
         msgs.splice(pos, 0, q);
       });
     }
@@ -1105,17 +1638,17 @@ class LiveDesk extends HTMLElement {
     return msgs.length ? msgs : [greeting];
   }
 
-  // ── Greet khi khởi động ──────────────────────────────────────
+  // ── Greeting on startup ──────────────────────────────────────
   _greet() {
     const msgs = this._buildStatusMessages();
     this._statusMsgs = msgs;
     this._statusIdx  = 0;
     this._showBubble(msgs[0]);
-    // Log để debug nếu cần
+    // Uncomment to debug status messages
     // console.log('[Nep] statusMsgs:', msgs);
   }
 
-  // ── Vào floating ─────────────────────────────────────────────
+  // ── Enter floating mode ─────────────────────────────────────────
   _enterFloating() {
     if (this._floating) return;
     this._floating = true;
@@ -1137,9 +1670,10 @@ class LiveDesk extends HTMLElement {
     el.innerHTML = `
       <div id="_nep_float_bubble"></div>
       <div id="nep-float-controls">
-        <button class="nep-fbtn" id="_nep_fbtn_switch">🔄</button>
+        <button class="nep-fbtn" id="_nep_fbtn_switchprev">◀</button>
+        <button class="nep-fbtn" id="_nep_fbtn_switchnext">▶</button>
         <button class="nep-fbtn" id="_nep_fbtn_quote">💬</button>
-        <button class="nep-fbtn restore" id="_nep_fbtn_restore">⬆ Vào card</button>
+        <button class="nep-fbtn restore" id="_nep_fbtn_restore">${_t(this._config, 'floatRestore')}</button>
       </div>
       <div id="nep-float-char">
         <div id="_nep_float_chat"><div id="_nep_float_chat_inner"></div></div>
@@ -1154,28 +1688,24 @@ class LiveDesk extends HTMLElement {
     this._loadIntoFrame(ff, this._modelIdx, fw, fh, true);
 
     document.getElementById('_nep_fbtn_restore').onclick = () => this._exitFloating();
-    document.getElementById('_nep_fbtn_switch').onclick  = () => this._switchModel();
+    document.getElementById('_nep_fbtn_switchprev').onclick = () => this._switchModelPrev();
+    document.getElementById('_nep_fbtn_switchnext').onclick = () => this._switchModel();
     document.getElementById('_nep_fbtn_quote').onclick   = () => {
-      this._floatTip(this._rand([`${this._cn()} đang canh nhà cho bạn nha~ 🛡️`,'Đúp click để về card nghen!',
-        `Nhà thông minh + ${this._cn()} = xịn xò dữ vậy! 💜`,'Uống nước vô đi nào~ 💧',
-        `Cố lên nha! ${this._cn()} cổ vũ hết mình luôn! 💪`,
-        `${this._cn()} canh nhà thiệt thọ nha, đừng lo~ 💜`]), 4000);
+      this._floatTip(this._rand(_t(this._config, 'floatTips', this._cn())), 4000);
     };
     const charDiv = document.getElementById('nep-float-char');
     charDiv.addEventListener('click', () => {
-      this._floatTip(this._rand([`${this._cn()} đang canh nhà đây nha~`,'Đúp click để về card nghen!',
-        'Hí hí~ 💜','Cù lét! >///<',`Thương ${this._cn()} hông? 💜`,
-        `Ủa sao chọc ${this._cn()} hoài vậy ta~ 😳`]), 3000);
+      this._floatTip(this._rand(_t(this._config, 'floatCharTips', this._cn())), 3000);
     });
     charDiv.addEventListener('dblclick', () => this._exitFloating());
-    this._floatTip(`${this._cn()} canh nhà góc phải rồi nha~ 💜 Đúp click để về card nghen!`, 4000);
+    this._floatTip(_t(this._config, 'floatInitTip', this._cn()), 4000);
 
-    // ── Eye tracking: truyền tọa độ chuột vào iframe ──────────
+    // ── Eye tracking: send cursor coordinates to iframe ──────────
     this._floatMouseMove = (e) => {
       const ff = document.getElementById('_nep_float_frame');
       if (!ff) return;
       const rect = ff.getBoundingClientRect();
-      // Tọa độ chuẩn hóa 0..1 tương đối với iframe (kể cả ngoài)
+      // Normalized coordinates 0..1 relative to iframe (including outside)
       const px = (e.clientX - rect.left) / rect.width;
       const py = (e.clientY - rect.top)  / rect.height;
       try {
@@ -1184,7 +1714,7 @@ class LiveDesk extends HTMLElement {
     };
     document.addEventListener('mousemove', this._floatMouseMove);
 
-    // ── Float chat bubble: xoay vòng status giống card ─────────
+    // ── Float chat bubble: rotate status messages like the card ─────────
     this._floatChatShow = (msg) => {
       const wrap  = document.getElementById('_nep_float_chat');
       const inner = document.getElementById('_nep_float_chat_inner');
@@ -1192,14 +1722,14 @@ class LiveDesk extends HTMLElement {
       wrap.classList.remove('show');
       setTimeout(() => { inner.innerHTML = msg; wrap.classList.add('show'); }, 160);
     };
-    // Hiện ngay status đầu tiên sau 1s
+    // Show first status immediately after 1s
     setTimeout(() => {
       const msgs = this._buildStatusMessages();
       this._floatChatMsgs = msgs;
       this._floatChatIdx  = 0;
       this._floatChatShow(msgs[0]);
     }, 1000);
-    // Xoay vòng mỗi 5s (giống card)
+    // Rotate every 5s (same as card)
     this._floatChatInterval = setInterval(() => {
       if (!this._floating) return;
       const msgs = this._floatChatMsgs || this._buildStatusMessages();
@@ -1208,18 +1738,18 @@ class LiveDesk extends HTMLElement {
     }, 5000);
   }
 
-  // ── Thoát floating ───────────────────────────────────────────
+  // ── Exit floating mode ───────────────────────────────────────────
   _exitFloating() {
     if (!this._floating) return;
     this._floating = false;
     try { localStorage.removeItem('nep_floating'); } catch(e){}
     if (this._floatEl) { this._floatEl.remove(); this._floatEl = null; }
-    // Dọn eye tracking listener
+    // Clean up eye tracking listener
     if (this._floatMouseMove) {
       document.removeEventListener('mousemove', this._floatMouseMove);
       this._floatMouseMove = null;
     }
-    // Dọn float chat rotation
+    // Clean up float chat rotation
     if (this._floatChatInterval) {
       clearInterval(this._floatChatInterval);
       this._floatChatInterval = null;
@@ -1230,7 +1760,7 @@ class LiveDesk extends HTMLElement {
     const frame = this._shadow.getElementById('nep-l2d-frame');
     const h = this._config.height || 440;
     this._loadIntoFrame(frame, this._modelIdx, 400, h, false);
-    this._pushStatus(`${this._cn()} về nhà rồi nha~ 🏠💜 Nhớ ${this._cn()} hông?`, true);
+    this._pushStatus(_t(this._config, 'returnMsg', this._cn()), true);
   }
 
   // ── Update sensors ───────────────────────────────────────────
@@ -1239,7 +1769,7 @@ class LiveDesk extends HTMLElement {
     const cfg = this._config;
     let changed = false;
 
-    // Nhiệt độ
+    // Temperature
     if (cfg.temp_sensor) {
       const s = this._hass.states[cfg.temp_sensor];
       const v = s ? Math.round(parseFloat(s.state)) : null;
@@ -1247,7 +1777,7 @@ class LiveDesk extends HTMLElement {
         if (this._curTemp !== v) { this._curTemp = v; changed = true; }
       }
     }
-    // Độ ẩm
+    // Humidity
     if (cfg.humid_sensor) {
       const s = this._hass.states[cfg.humid_sensor];
       const v = s ? Math.round(parseFloat(s.state)) : null;
@@ -1255,22 +1785,23 @@ class LiveDesk extends HTMLElement {
         if (this._curHumid !== v) { this._curHumid = v; changed = true; }
       }
     }
-    // Thời tiết
+    // Weather
     if (cfg.weather_entity) {
       const s = this._hass.states[cfg.weather_entity];
       if (s) {
         if (this._curWeather !== s.state) { this._curWeather = s.state; changed = true; }
-        // fix: bỏ biến info thừa, không dùng ở đây — _buildStatusMessages xử lý
+        // fix: removed unused info variable — _buildStatusMessages handles this
       }
     }
 
     // Alert sensors
     let alertMsg = null, alertMs = 4000;
+    const AM = _getLang(this._config) === 'en' ? ALERT_MSGS_EN : ALERT_MSGS;
     if (cfg.motion_sensor) {
       const s = this._hass.states[cfg.motion_sensor];
       const on = s?.state === 'on';
       if (this._changed(cfg.motion_sensor, s?.state)) {
-        alertMsg = this._rand(on ? ALERT_MSGS.motion.on : ALERT_MSGS.motion.off).replace('{c}', this._cn());
+        alertMsg = this._rand(on ? AM.motion.on : AM.motion.off).replace('{c}', this._cn());
         if (on) alertMs = 5000;
       }
     }
@@ -1278,15 +1809,14 @@ class LiveDesk extends HTMLElement {
       const s = this._hass.states[cfg.door_sensor];
       const on = s?.state === 'on';
       if (on && this._changed(cfg.door_sensor, s?.state))
-        alertMsg = this._rand(ALERT_MSGS.door.on).replace('{c}', this._cn());
+        alertMsg = this._rand(AM.door.on).replace('{c}', this._cn());
     }
     if (cfg.smoke_sensor) {
       const s = this._hass.states[cfg.smoke_sensor];
       const on = s?.state === 'on';
-      // fix: thêm _changed() như motion/door để tránh spam alert mỗi lần hass update
       if (this._changed(cfg.smoke_sensor, s?.state)) {
-        if (on) { alertMsg = this._rand(ALERT_MSGS.smoke.on).replace('{c}', this._cn()); alertMs = 8000; }
-        else    { alertMsg = this._rand(ALERT_MSGS.smoke.off).replace('{c}', this._cn()); }
+        if (on) { alertMsg = this._rand(AM.smoke.on).replace('{c}', this._cn()); alertMs = 8000; }
+        else    { alertMsg = this._rand(AM.smoke.off).replace('{c}', this._cn()); }
       }
     }
 
@@ -1295,11 +1825,11 @@ class LiveDesk extends HTMLElement {
       else this._pushStatus(alertMsg, true);
     }
 
-    // Refresh status messages nếu có thay đổi hoặc force
+    // Refresh status messages if changed or forced
     if (changed || force) {
       const msgs = this._buildStatusMessages();
       this._statusMsgs = msgs;
-      // Không reset idx để không giật bubble
+      // Do not reset idx to avoid bubble jitter
     }
 
     this._saveStates();
@@ -1316,13 +1846,13 @@ class LiveDesk extends HTMLElement {
   }
 
   _nepQuote() {
-    const name  = this._config.name || 'bạn';
+    const name  = this._config.name || (_getLang(this._config) === 'en' ? 'you' : 'bạn');
     const model = MODELS[this._modelIdx];
     const pool  = this._getCharQuotes(name, model);
     const msg   = this._rand(pool);
     if (this._floating) this._floatTip(msg, 5000);
     else this._pushStatus(msg, true);
-    // Phát âm thanh: sound file nếu có, TTS nếu không
+    // Play audio: sound file if available, TTS otherwise
     setTimeout(() => this._playAudio(msg.replace(/[\u{1F000}-\u{1FFFF}~✿★☆♪♫]/gu, '').trim()), 200);
   }
 
@@ -1335,7 +1865,7 @@ class LiveDesk extends HTMLElement {
 
   _rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-  // Trả về tên tự xưng của nhân vật hiện tại (ưu tiên char_nickname từ config)
+  // Return current character's self-reference name (priority: char_nickname from config)
   _cn() {
     if (this._config.char_nickname?.trim()) return this._config.char_nickname.trim();
     const model = MODELS[this._modelIdx];
@@ -1344,23 +1874,23 @@ class LiveDesk extends HTMLElement {
 
   // ══════════════════════════════════════════════════════════════
   // ── AUDIO ENGINE ─────────────────────────────────────────────
-  // Logic: model có sound file → phát file gốc
-  //        model không có sound  → dùng Web Speech TTS đọc bubble
+  // Logic: model has sound file → play original file
+  //        model has no sound    → use Web Speech TTS to read bubble
   // ══════════════════════════════════════════════════════════════
 
   // ══════════════════════════════════════════════════════════════
   // ── AUDIO ENGINE ─────────────────────────────────────────────
-  // Logic: model có sound file → phát file gốc
-  //        model không có sound  → dùng TTS engine được cấu hình trong YAML
+  // Logic: model has sound file → play original file
+  //        model has no sound    → use TTS engine configured in YAML
   //
-  // TTS engines hỗ trợ (config: tts.engine):
-  //   webspeech        – Web Speech API (mặc định, built-in trình duyệt)
+  // TTS engines supported (config: tts.engine):
+  //   webspeech        – Web Speech API (default, browser built-in)
   //   google_translate – Audio tag + Google Translate TTS URL
-  //   ha_service       – Gọi HA TTS service (tts.google_translate_say, tts.cloud_say, ...)
-  //   none             – Tắt TTS hoàn toàn
+  //   ha_service       – Call HA TTS service (tts.google_translate_say, tts.cloud_say, ...)
+  //   none             – Disable TTS completely
   // ══════════════════════════════════════════════════════════════
 
-  // Trả về config TTS đã parse từ YAML
+  // Return parsed TTS config from YAML
   _getTtsCfg() {
     const raw = this._config.tts;
     if (!raw) return { engine: 'webspeech', lang: 'vi-VN', rate: 1.05, pitch: 1.2 };
@@ -1378,7 +1908,7 @@ class LiveDesk extends HTMLElement {
     };
   }
 
-  // Làm sạch text để TTS đọc tự nhiên
+  // Clean text so TTS reads naturally
   _cleanTtsText(text) {
     return (text || '')
       .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu, '')
@@ -1388,22 +1918,22 @@ class LiveDesk extends HTMLElement {
       .replace(/\s+/g, ' ').trim();
   }
 
-  // Gọi khi chuyển model: fetch model.json → build danh sách sounds
+  // Called when switching model: fetch model.json → build sound list
   async _loadModelSounds(modelIdx) {
     this._modelSounds = [];
     const m = MODELS[modelIdx];
-    if (!m.hasSound) return; // model không có sound → dùng TTS
+    if (!m.hasSound) return; // model has no sound → use TTS
     try {
       const res  = await fetch(m.path);
       const json = await res.json();
       const base = m.soundBase || m.path.replace(/[^/]+$/, '');
       const ext  = m.soundExt  || '.mp3';
-      // Duyệt tất cả motion groups, lấy các entry có "sound"
+      // Iterate all motion groups, collect entries with "sound"
       const motions = json.motions || {};
       for (const group of Object.values(motions)) {
         for (const entry of group) {
           if (entry.sound) {
-            // Đảm bảo URL đầy đủ + extension
+            // Ensure full URL + extension
             let snd = entry.sound;
             if (!snd.startsWith('http')) snd = base + snd;
             if (!snd.match(/\.\w+$/))   snd = snd + ext;
@@ -1414,7 +1944,7 @@ class LiveDesk extends HTMLElement {
     } catch(e) { this._modelSounds = []; }
   }
 
-  // Phát một sound file (HTML Audio, không block TTS)
+  // Play a sound file (HTML Audio, non-blocking)
   _playSound(url) {
     try {
       if (this._audio) { this._audio.pause(); this._audio = null; }
@@ -1422,11 +1952,11 @@ class LiveDesk extends HTMLElement {
       a.volume = 0.75;
       this._audio = a;
       const p = a.play();
-      if (p) p.catch(() => {}); // im lặng nếu bị block
+      if (p) p.catch(() => {}); // silently ignore if playback is blocked
     } catch(e) {}
   }
 
-  // Phát random sound từ model (nếu có)
+  // Play random sound from model (if available)
   _playModelSound() {
     if (!this._modelSounds.length) return false;
     const url = this._rand(this._modelSounds);
@@ -1490,7 +2020,7 @@ class LiveDesk extends HTMLElement {
     try {
       if (this._audio) { this._audio.pause(); this._audio = null; }
       const lang = cfg.lang || 'vi';
-      // Google Translate TTS endpoint (không cần key, giới hạn ~200 ký tự/lần)
+      // Google Translate TTS endpoint (no key needed, limit ~200 chars/call)
       const chunk = text.slice(0, 200);
       const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${lang}&client=tw-ob`;
       const a = new Audio(url);
@@ -1501,17 +2031,17 @@ class LiveDesk extends HTMLElement {
     } catch(e) {}
   }
 
-  // ── TTS Engine: fetch URL từ HA TTS rồi phát bằng <audio> ──
-  // Dùng khi engine=ha_service + service=tts.speak nhưng không có media_player_entity_id
-  // Giọng giống hệt khi phát qua loa vật lý (cùng engine Google Translate)
+  // ── TTS Engine: fetch URL from HA TTS then play via <audio> ──
+  // Used when engine=ha_service + service=tts.speak but no media_player_entity_id
+  // Same voice as physical speaker (same Google Translate engine)
   async _speakHaTtsUrl(text, cfg) {
     if (!this._hass) return;
     try {
-      // Gọi HA REST API: /api/tts_get_url để lấy URL audio
-      // entity_id ở đây là tts entity (vd: tts.google_translate_vi_com)
+      // Call HA REST API: /api/tts_get_url to get audio URL
+      // entity_id here is the tts entity (e.g. tts.google_translate_vi_com)
       const ttsEntityId = cfg.entity_id;
-      // Lấy platform từ tts entity state nếu có, hoặc dùng entity_id để đoán
-      // API nhận: engine_id (tts entity) hoặc platform (legacy)
+      // Get platform from tts entity state if available, or infer from entity_id
+      // API accepts: engine_id (tts entity) or platform (legacy)
       const body = {
         engine_id: ttsEntityId,
         message:   text,
@@ -1528,38 +2058,38 @@ class LiveDesk extends HTMLElement {
       if (!res.ok) throw new Error(`tts_get_url HTTP ${res.status}`);
       const data = await res.json();
       const audioUrl = data.url;
-      if (!audioUrl) throw new Error('tts_get_url không trả về url');
+      if (!audioUrl) throw new Error('tts_get_url returned no url');
 
-      // Phát audio — giọng giống hệt loa vật lý
+      // Play audio — same voice as physical speaker
       this._playSound(audioUrl);
     } catch(e) {
-      console.warn('[NepTTS] _speakHaTtsUrl lỗi, fallback Web Speech:', e);
-      // Fallback cuối cùng nếu API lỗi
+      console.warn('[NepTTS] _speakHaTtsUrl error, fallback to Web Speech:', e);
+      // Final fallback if API fails
       this._speakWebSpeech(text, cfg);
     }
   }
 
   // ── TTS Engine: Home Assistant service ────────────────────
-  // Hỗ trợ 2 kiểu:
-  //   Kiểu mới (HA 2023.8+): tts.speak — target là tts entity, truyền media_player_entity_id trong data
-  //   Kiểu cũ:               tts.google_translate_say / tts.cloud_say — target là media_player
+  // Supports 2 modes:
+  //   New style (HA 2023.8+): tts.speak — target is tts entity, pass media_player_entity_id in data
+  //   Old style:                tts.google_translate_say / tts.cloud_say — target is media_player
   _speakHaService(text, cfg) {
     if (!this._hass) return;
-    const service   = cfg.service;    // vd: tts.speak hoặc tts.google_translate_say
-    const entity_id = cfg.entity_id;  // vd: tts.google_translate_vi_com hoặc media_player.loa
+    const service   = cfg.service;    // e.g. tts.speak or tts.google_translate_say
+    const entity_id = cfg.entity_id;  // e.g. tts.google_translate_vi_com or media_player.speaker
     if (!service || !entity_id) {
-      console.warn('[NepTTS] ha_service cần service và entity_id trong YAML tts config');
+      console.warn('[NepTTS] ha_service requires service and entity_id in YAML tts config');
       return;
     }
     const [domain, svc] = service.split('.');
     if (!domain || !svc) return;
     try {
-      // Kiểu mới: tts.speak — entity_id là TTS entity (tts.xxx), cần thêm media_player_entity_id
+      // New style: tts.speak — entity_id is TTS entity (tts.xxx), media_player_entity_id required
       if (domain === 'tts' && svc === 'speak') {
         const mp = cfg.media_player_entity_id || cfg.media_player;
         if (!mp) {
-          // Không có media_player → fetch audio URL từ HA TTS rồi phát bằng <audio>
-          // Giọng giống hệt khi phát qua loa vật lý
+          // No media_player → fetch audio URL from HA TTS and play via <audio>
+          // Same voice as physical speaker
           this._speakHaTtsUrl(text, cfg);
           return;
         }
@@ -1571,8 +2101,8 @@ class LiveDesk extends HTMLElement {
           ...(cfg.options ? cfg.options : {}),
         });
       } else {
-        // Kiểu cũ: tts.google_translate_say, tts.cloud_say, ...
-        // entity_id là media_player
+        // Old style: tts.google_translate_say, tts.cloud_say, ...
+        // entity_id is the media_player
         this._hass.callService(domain, svc, {
           entity_id,
           message: text,
@@ -1581,16 +2111,16 @@ class LiveDesk extends HTMLElement {
         });
       }
     } catch(e) {
-      console.warn('[NepTTS] callService lỗi:', e);
+      console.warn('[NepTTS] callService error:', e);
     }
   }
 
-  // ── Dispatcher: đọc text theo engine đã cấu hình ──────────
+  // ── Dispatcher: speak text using configured engine ──────────
   _speakBubble(overrideText) {
     const cfg = this._getTtsCfg();
     if (cfg.engine === 'none') return;
 
-    // Lấy text từ bubble hiện tại hoặc override
+    // Get text from current bubble or override
     let text = overrideText || '';
     if (!text) {
       const b = this._shadow?.getElementById('nep-bubble');
@@ -1610,13 +2140,13 @@ class LiveDesk extends HTMLElement {
         this._speakHaService(text, cfg);
         break;
       default:
-        // fallback: thử Web Speech
+        // fallback: try Web Speech
         this._speakWebSpeech(text, cfg);
     }
   }
 
-  // Entry point: gọi khi muốn phát âm thanh (click nhân vật, nút 💬, bubble xuất hiện)
-  // Tự chọn: sound file nếu model có, TTS nếu không
+  // Entry point: called when audio should play (character click, 💬 button, bubble appears)
+  // Auto-select: sound file if model has one, TTS otherwise
   _playAudio(overrideText) {
     if (!this._audioEnabled) return;
     const m = MODELS[this._modelIdx];
@@ -1627,13 +2157,13 @@ class LiveDesk extends HTMLElement {
     }
   }
 
-  // Dừng mọi âm thanh
+  // Stop all audio
   _stopAudio() {
     if (this._audio) { this._audio.pause(); this._audio = null; }
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   }
 
-  // ── Ghim: hiện nhỏ đè lên mọi dashboard, card gốc vẫn hiển thị ────
+  // ── Pin: show small overlay on top of all dashboards, original card still visible ────
   _togglePin() {
     if (this._pinned) this._exitPin();
     else              this._enterPin();
@@ -1643,11 +2173,11 @@ class LiveDesk extends HTMLElement {
     if (this._pinned) return;
     this._pinned = true;
     try { localStorage.setItem('nep_pinned', '1'); } catch(e){}
-    // Cập nhật nút trong card
+    // Update button in card
     const btn = this._shadow.getElementById('btnPin');
-    if (btn) { btn.textContent = '📍 Bỏ ghim'; btn.classList.add('green'); }
+    if (btn) { btn.textContent = _t(this._config, 'pinActive'); btn.classList.add('green'); }
     this._buildPinOverlay();
-    // MutationObserver: tự re-inject nếu overlay bị xóa khi navigate
+    // MutationObserver: auto re-inject if overlay is removed on navigation
     if (!this._pinObserver) {
       this._pinObserver = new MutationObserver(() => {
         if (this._pinned && !document.getElementById('nep-pin-overlay')) {
@@ -1663,7 +2193,7 @@ class LiveDesk extends HTMLElement {
     this._pinned = false;
     try { localStorage.removeItem('nep_pinned'); } catch(e){}
     const btn = this._shadow.getElementById('btnPin');
-    if (btn) { btn.textContent = '📍 Ghim'; btn.classList.remove('green'); }
+    if (btn) { btn.textContent = _t(this._config, 'pinInactive'); btn.classList.remove('green'); }
     if (this._pinObserver) { this._pinObserver.disconnect(); this._pinObserver = null; }
     this._teardownPin();
   }
@@ -1685,7 +2215,7 @@ class LiveDesk extends HTMLElement {
   }
 
   _buildPinOverlay() {
-    // Inject CSS nếu chưa có
+    // Inject CSS if not already present
     if (!document.getElementById('_nep_float_css')) {
       const st = document.createElement('style'); st.id = '_nep_float_css';
       st.textContent = FLOAT_CSS; document.head.appendChild(st);
@@ -1696,8 +2226,9 @@ class LiveDesk extends HTMLElement {
     el.id = 'nep-pin-overlay';
     el.innerHTML = `
       <div id="nep-pin-controls">
-        <button class="nep-pin-btn" id="_nep_pbtn_switch">🔄</button>
-        <button class="nep-pin-btn unpin" id="_nep_pbtn_unpin">📍 Bỏ ghim</button>
+        <button class="nep-pin-btn" id="_nep_pbtn_switchprev">◀</button>
+        <button class="nep-pin-btn" id="_nep_pbtn_switchnext">▶</button>
+        <button class="nep-pin-btn unpin" id="_nep_pbtn_unpin">${_t(this._config, 'pinActive')}</button>
       </div>
       <div id="nep-pin-char">
         <div id="_nep_pin_chat"><div id="_nep_pin_chat_inner"></div></div>
@@ -1712,15 +2243,15 @@ class LiveDesk extends HTMLElement {
     this._loadIntoFrame(ff, this._modelIdx, fw, fh, true);
 
     document.getElementById('_nep_pbtn_unpin').onclick  = () => this._exitPin();
-    document.getElementById('_nep_pbtn_switch').onclick = () => this._switchModel();
+    document.getElementById('_nep_pbtn_switchprev').onclick = () => this._switchModelPrev();
+    document.getElementById('_nep_pbtn_switchnext').onclick = () => this._switchModel();
 
     const charDiv = document.getElementById('nep-pin-char');
     charDiv.addEventListener('click', () => {
       const inner = document.getElementById('_nep_pin_chat_inner');
       const wrap  = document.getElementById('_nep_pin_chat');
       if (!inner || !wrap) return;
-      const msg = this._rand([`${this._cn()} đang ghim ở đây nha~ 📍`,'Hí hí~ 💜',
-        'Cù lét! >///<',`Thương ${this._cn()} hông? 💜`,`Ủa sao chọc ${this._cn()} hoài~ 😳`]);
+      const msg = this._rand(_t(this._config, 'pinClickTips', this._cn()));
       wrap.classList.remove('show');
       setTimeout(() => { inner.innerHTML = msg; wrap.classList.add('show'); }, 160);
     });
@@ -1736,7 +2267,7 @@ class LiveDesk extends HTMLElement {
     };
     document.addEventListener('mousemove', this._pinMouseMove);
 
-    // Chat bubble xoay vòng
+    // Chat bubble rotation
     this._pinChatShow = (msg) => {
       const wrap  = document.getElementById('_nep_pin_chat');
       const inner = document.getElementById('_nep_pin_chat_inner');
@@ -1757,21 +2288,21 @@ class LiveDesk extends HTMLElement {
     }, 5000);
   }
 
-  // fix: khi card được gắn lại vào DOM (navigate về dashboard) → re-inject overlay
+  // fix: when card is re-attached to DOM (navigating back to dashboard) → re-inject overlay
   connectedCallback() {
     if (this._floating) {
       setTimeout(() => this._rebuildFloat(), 300);
     }
-    // Pinned overlay tự duy trì qua MutationObserver, nhưng nếu mất thì rebuild
+    // Pinned overlay is self-maintained via MutationObserver, but rebuild if missing
     if (this._pinned && !document.getElementById('nep-pin-overlay')) {
       setTimeout(() => this._rebuildPin(), 300);
     }
   }
 
-  // Re-inject float overlay mà không reset trạng thái
+  // Re-inject float overlay without resetting state
   _rebuildFloat() {
     if (!this._floating) return;
-    // Dọn overlay cũ nếu còn sót
+    // Clean up old overlay if still present
     const old = document.getElementById('nep-float-overlay');
     if (old) old.remove();
     if (this._floatMouseMove) {
@@ -1782,10 +2313,10 @@ class LiveDesk extends HTMLElement {
       clearInterval(this._floatChatInterval);
       this._floatChatInterval = null;
     }
-    // Ẩn card (có thể bị reset khi HA re-render)
+    // Hide card (may be reset when HA re-renders)
     const card = this._shadow.querySelector('.nep-card');
     if (card) card.style.display = 'none';
-    // Inject CSS nếu mất
+    // Inject CSS if missing
     if (!document.getElementById('_nep_float_css')) {
       const st = document.createElement('style');
       st.id = '_nep_float_css';
@@ -1799,9 +2330,10 @@ class LiveDesk extends HTMLElement {
     el.innerHTML = `
       <div id="_nep_float_bubble"></div>
       <div id="nep-float-controls">
-        <button class="nep-fbtn" id="_nep_fbtn_switch">🔄</button>
+        <button class="nep-fbtn" id="_nep_fbtn_switchprev">◀</button>
+        <button class="nep-fbtn" id="_nep_fbtn_switchnext">▶</button>
         <button class="nep-fbtn" id="_nep_fbtn_quote">💬</button>
-        <button class="nep-fbtn restore" id="_nep_fbtn_restore">⬆ Vào card</button>
+        <button class="nep-fbtn restore" id="_nep_fbtn_restore">${_t(this._config, 'floatRestore')}</button>
       </div>
       <div id="nep-float-char">
         <div id="_nep_float_chat"><div id="_nep_float_chat_inner"></div></div>
@@ -1814,18 +2346,14 @@ class LiveDesk extends HTMLElement {
     const ff = document.getElementById('_nep_float_frame');
     this._loadIntoFrame(ff, this._modelIdx, fw, fh, true);
     document.getElementById('_nep_fbtn_restore').onclick = () => this._exitFloating();
-    document.getElementById('_nep_fbtn_switch').onclick  = () => this._switchModel();
+    document.getElementById('_nep_fbtn_switchprev').onclick = () => this._switchModelPrev();
+    document.getElementById('_nep_fbtn_switchnext').onclick = () => this._switchModel();
     document.getElementById('_nep_fbtn_quote').onclick   = () => {
-      this._floatTip(this._rand([`${this._cn()} đang canh nhà cho bạn nha~ 🛡️`,'Đúp click để về card nghen!',
-        `Nhà thông minh + ${this._cn()} = xịn xò dữ vậy! 💜`,'Uống nước vô đi nào~ 💧',
-        `Cố lên nha! ${this._cn()} cổ vũ hết mình luôn! 💪`,
-        `${this._cn()} canh nhà thiệt thọ nha, đừng lo~ 💜`]), 4000);
+      this._floatTip(this._rand(_t(this._config, 'floatTips', this._cn())), 4000);
     };
     const charDiv = document.getElementById('nep-float-char');
     charDiv.addEventListener('click', () => {
-      this._floatTip(this._rand([`${this._cn()} đang canh nhà đây nha~`,'Đúp click để về card nghen!',
-        'Hí hí~ 💜','Cù lét! >///<',`Thương ${this._cn()} hông? 💜`,
-        `Ủa sao chọc ${this._cn()} hoài vậy ta~ 😳`]), 3000);
+      this._floatTip(this._rand(_t(this._config, 'floatCharTips', this._cn())), 3000);
     });
     charDiv.addEventListener('dblclick', () => this._exitFloating());
     // Eye tracking
@@ -1860,8 +2388,8 @@ class LiveDesk extends HTMLElement {
     }, 5000);
   }
 
-  // fix: dọn sạch khi card bị xóa khỏi DOM (navigate đi dashboard khác)
-  // GIỮ NGUYÊN this._floating để connectedCallback biết cần rebuild
+  // fix: clean up when card is removed from DOM (navigating away from dashboard)
+  // KEEP this._floating intact so connectedCallback knows to rebuild
   disconnectedCallback() {
     this._stopAudio();
     if (this._msgListener) {
@@ -1875,10 +2403,10 @@ class LiveDesk extends HTMLElement {
       document.removeEventListener('mousemove', this._floatMouseMove);
       this._floatMouseMove = null;
     }
-    // Xóa overlay khỏi DOM nhưng GIỮ this._floating = true
-    // để connectedCallback rebuild lại khi quay về
+    // Remove overlay from DOM but KEEP this._floating = true
+    // so connectedCallback can rebuild when returning
     if (this._floatEl) { this._floatEl.remove(); this._floatEl = null; }
-    // Pin: teardown nhưng giữ _pinned=true; MutationObserver tự rebuild khi body sẵn sàng
+    // Pin: teardown but keep _pinned=true; MutationObserver will rebuild when body is ready
     if (this._pinMouseMove) {
       document.removeEventListener('mousemove', this._pinMouseMove);
       this._pinMouseMove = null;
@@ -1961,12 +2489,20 @@ class LiveDeskEditor extends HTMLElement {
       'Uni 🩷':     'Uni',
       'Blanc 📖':   'Blanc',
       'Tia 🧪':      'Tia',
+      'HK416 Normal 🎯':    'HK416',
+      'HK416 Destroy 💥':   'HK416',
+      'UMP45 🔫':           'UMP45',
+      'M4A1 🛡️':           'M4A1',
+      'SOPMOD-II 🔥':       'SOPMOD',
+      'WA2000 Destroy 🌹':  'WA2000',
     };
     return map[modelName] || 'Nep';
   }
 
   _render() {
     const cfg    = this._config;
+    const lang   = _getLang(cfg);
+    const t      = (k, ...a) => _t(cfg, k, ...a);
     const blur   = cfg.card_blur !== undefined ? cfg.card_blur : 0;
     const ttsEng = (cfg.tts && cfg.tts.engine) || 'webspeech';
     const ttsLang  = (cfg.tts && cfg.tts.lang)  || 'vi-VN';
@@ -2030,32 +2566,40 @@ class LiveDeskEditor extends HTMLElement {
       Designed by <strong style="color:var(--primary-color)">@doanlong1412</strong> from 🇻🇳 Vietnam
     </div>
 
+    <!-- Language switcher -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px 4px;gap:8px">
+      <span style="font-size:12px;font-weight:600;color:var(--secondary-text-color)">${t('lblInterfaceLang')}</span>
+      <div class="bg" style="gap:4px">
+        <div class="ob ${lang === 'vi' ? 'on' : ''}" id="langVI" style="min-width:80px">🇻🇳 Tiếng Việt</div>
+        <div class="ob ${lang === 'en' ? 'on' : ''}" id="langEN" style="min-width:80px">🇬🇧 English</div>
+      </div>
+    </div>
+
     <!-- ══ GENERAL ══ -->
     <div class="acc-wrap">
       <div class="acc-head" id="head-general">
-        <span>⚙️ Cài đặt chung</span>
+        <span>${t('secGeneral')}</span>
         <span class="acc-arrow" id="arrow-general">${this._open.general ? '▾' : '▸'}</span>
       </div>
       <div class="acc-body" id="body-general" style="display:${this._open.general ? 'block' : 'none'}">
 
         <!-- Owner name -->
         <div class="row">
-          <label>👤 Tên chủ nhân <span style="color:var(--secondary-text-color);font-weight:400">(nhân vật sẽ gọi tên này trong lời chào)</span></label>
-          <input type="text" id="ownerName" placeholder="vd: Anh Long, bạn, boss..." value="${cfg.name || ''}"/>
-          <div class="hint">Để trống = mặc định gọi là "bạn"</div>
+          <label>${t('lblOwnerName')} <span style="color:var(--secondary-text-color);font-weight:400">${t('lblOwnerNameHint')}</span></label>
+          <input type="text" id="ownerName" placeholder="${t('lblOwnerNamePlaceholder')}" value="${cfg.name || ''}"/>
+          <div class="hint">${t('lblOwnerNameEmpty')}</div>
         </div>
-
 
         <!-- Custom nickname override -->
         <div class="row">
-          <label>✏️ Tên tự xưng tuỳ chỉnh <span style="color:var(--secondary-text-color);font-weight:400">(ghi đè tên mặc định của nhân vật)</span></label>
-          <input type="text" id="charNickname" placeholder="vd: Nep, Emilia, Aqua..." value="${cfg.char_nickname || ''}"/>
-          <div class="hint">Để trống = dùng tên gốc nhân vật (${curNick}). Nhân vật sẽ tự xưng bằng tên này trong câu thoại.</div>
+          <label>${t('lblCharNick')} <span style="color:var(--secondary-text-color);font-weight:400">${t('lblCharNickHint')}</span></label>
+          <input type="text" id="charNickname" placeholder="${t('lblCharNickPlaceholder')}" value="${cfg.char_nickname || ''}"/>
+          <div class="hint">${t('lblCharNickEmpty', curNick)}</div>
         </div>
 
         <!-- Card size -->
         <div class="sl-row">
-          <label>📐 Chiều cao card (px)</label>
+          <label>${t('lblCardHeight')}</label>
           <input type="range" id="heightSl" min="300" max="700" step="20" value="${cfg.height || 440}"/>
           <span class="slv" id="heightV">${cfg.height || 440}px</span>
         </div>
@@ -2066,29 +2610,29 @@ class LiveDeskEditor extends HTMLElement {
     <!-- ══ APPEARANCE ══ -->
     <div class="acc-wrap">
       <div class="acc-head" id="head-appearance">
-        <span>🎨 Giao diện & Hiệu ứng</span>
+        <span>${t('secAppear')}</span>
         <span class="acc-arrow" id="arrow-appearance">${this._open.appearance ? '▾' : '▸'}</span>
       </div>
       <div class="acc-body" id="body-appearance" style="display:${this._open.appearance ? 'block' : 'none'}">
 
         <!-- Blur slider -->
         <div class="sl-row">
-          <label>🪟 Độ mờ nền (blur)</label>
+          <label>${t('lblBlur')}</label>
           <input type="range" id="blurSl" min="0" max="30" step="1" value="${blur}"/>
           <span class="slv" id="blurV">${blur}px</span>
         </div>
-        <div class="hint" style="margin-top:-8px;margin-bottom:12px">0px = trong suốt hoàn toàn · 30px = mờ tối đa. Kéo để xem preview ngay trên card.</div>
+        <div class="hint" style="margin-top:-8px;margin-bottom:12px">${t('lblBlurHint')}</div>
 
         <!-- Float size -->
         <div class="divider"></div>
-        <div class="tag">Chế độ Mini / Ghim</div>
+        <div class="tag">${t('lblMiniMode')}</div>
         <div class="sl-row">
-          <label>📐 Chiều cao nhân vật nổi (px)</label>
+          <label>${t('lblFloatH')}</label>
           <input type="range" id="floatHSl" min="300" max="900" step="20" value="${cfg.float_height || 650}"/>
           <span class="slv" id="floatHV">${cfg.float_height || 650}px</span>
         </div>
         <div class="sl-row">
-          <label>📐 Chiều rộng nhân vật nổi (px)</label>
+          <label>${t('lblFloatW')}</label>
           <input type="range" id="floatWSl" min="200" max="600" step="20" value="${cfg.float_width || 400}"/>
           <span class="slv" id="floatWV">${cfg.float_width || 400}px</span>
         </div>
@@ -2099,7 +2643,7 @@ class LiveDeskEditor extends HTMLElement {
     <!-- ══ SENSORS ══ -->
     <div class="acc-wrap">
       <div class="acc-head" id="head-sensors">
-        <span>🌡️ Cảm biến môi trường
+        <span>${t('secSensors')}
           ${[cfg.temp_sensor, cfg.humid_sensor, cfg.weather_entity].filter(Boolean).length > 0
             ? `<span class="badge">${[cfg.temp_sensor, cfg.humid_sensor, cfg.weather_entity].filter(Boolean).length}/3</span>`
             : ''}
@@ -2107,18 +2651,18 @@ class LiveDeskEditor extends HTMLElement {
         <span class="acc-arrow" id="arrow-sensors">${this._open.sensors ? '▾' : '▸'}</span>
       </div>
       <div class="acc-body" id="body-sensors" style="display:${this._open.sensors ? 'block' : 'none'}">
-        <div class="hint" style="margin-bottom:12px">Nhân vật sẽ phản ứng và đưa lời khuyên theo dữ liệu cảm biến thực từ Home Assistant.</div>
+        <div class="hint" style="margin-bottom:12px">${t('lblSensorsHint')}</div>
 
         <div class="row">
-          <label>🌡️ Cảm biến nhiệt độ</label>
+          <label>${t('lblTempSensor')}</label>
           <ha-entity-picker data-key="temp_sensor" data-domain="sensor" allow-custom-entity></ha-entity-picker>
         </div>
         <div class="row">
-          <label>💧 Cảm biến độ ẩm</label>
+          <label>${t('lblHumidSensor')}</label>
           <ha-entity-picker data-key="humid_sensor" data-domain="sensor" allow-custom-entity></ha-entity-picker>
         </div>
         <div class="row">
-          <label>⛅ Entity thời tiết</label>
+          <label>${t('lblWeatherEnt')}</label>
           <ha-entity-picker data-key="weather_entity" data-domain="weather" allow-custom-entity></ha-entity-picker>
         </div>
 
@@ -2128,7 +2672,7 @@ class LiveDeskEditor extends HTMLElement {
     <!-- ══ ALERTS ══ -->
     <div class="acc-wrap">
       <div class="acc-head" id="head-alerts">
-        <span>🚨 Cảm biến cảnh báo
+        <span>${t('secAlerts')}
           ${[cfg.motion_sensor, cfg.door_sensor, cfg.smoke_sensor].filter(Boolean).length > 0
             ? `<span class="badge">${[cfg.motion_sensor, cfg.door_sensor, cfg.smoke_sensor].filter(Boolean).length}/3</span>`
             : ''}
@@ -2136,18 +2680,18 @@ class LiveDeskEditor extends HTMLElement {
         <span class="acc-arrow" id="arrow-alerts">${this._open.alerts ? '▾' : '▸'}</span>
       </div>
       <div class="acc-body" id="body-alerts" style="display:${this._open.alerts ? 'block' : 'none'}">
-        <div class="hint" style="margin-bottom:12px">Nhân vật sẽ phát cảnh báo ngay khi sensor thay đổi trạng thái.</div>
+        <div class="hint" style="margin-bottom:12px">${t('lblAlertsHint')}</div>
 
         <div class="row">
-          <label>🚶 Cảm biến chuyển động</label>
+          <label>${t('lblMotionSensor')}</label>
           <ha-entity-picker data-key="motion_sensor" data-domain="binary_sensor" allow-custom-entity></ha-entity-picker>
         </div>
         <div class="row">
-          <label>🚪 Cảm biến cửa</label>
+          <label>${t('lblDoorSensor')}</label>
           <ha-entity-picker data-key="door_sensor" data-domain="binary_sensor" allow-custom-entity></ha-entity-picker>
         </div>
         <div class="row">
-          <label>🔥 Cảm biến khói / báo cháy</label>
+          <label>${t('lblSmokeSensor')}</label>
           <ha-entity-picker data-key="smoke_sensor" data-domain="binary_sensor" allow-custom-entity></ha-entity-picker>
         </div>
 
@@ -2157,16 +2701,16 @@ class LiveDeskEditor extends HTMLElement {
     <!-- ══ DEVICES / ENTITIES ══ -->
     <div class="acc-wrap">
       <div class="acc-head" id="head-devices">
-        <span>🏠 Thiết bị hiển thị (toolbar)
+        <span>${t('secDevices')}
           ${entities.length > 0 ? `<span class="badge">${entities.length}</span>` : ''}
         </span>
         <span class="acc-arrow" id="arrow-devices">${this._open.devices ? '▾' : '▸'}</span>
       </div>
       <div class="acc-body" id="body-devices" style="display:${this._open.devices ? 'block' : 'none'}">
-        <div class="hint" style="margin-bottom:12px">Các entity được hiện thành nút trong toolbar. Hover vào nút bất kỳ trên dashboard để nhân vật giới thiệu thiết bị đó.</div>
+        <div class="hint" style="margin-bottom:12px">${t('lblDevicesHint')}</div>
 
         <div class="sl-row" style="margin-bottom:14px">
-          <label style="font-size:12px;font-weight:600;color:var(--secondary-text-color);min-width:130px">Số thiết bị</label>
+          <label style="font-size:12px;font-weight:600;color:var(--secondary-text-color);min-width:130px">${t('lblDeviceCount')}</label>
           <input type="range" id="entCountSl" min="1" max="12" step="1" value="${entCount}"/>
           <span class="slv" id="entCountV">${entCount}</span>
         </div>
@@ -2175,14 +2719,14 @@ class LiveDeskEditor extends HTMLElement {
           ${Array.from({ length: entCount }, (_, i) => {
             const item = entities[i] || {};
             return `<div class="ent-card">
-              <div class="ent-card-title">Thiết bị ${i + 1}</div>
+              <div class="ent-card-title">${t('lblDeviceN', i)}</div>
               <div class="row">
-                <label>⚡ Entity</label>
+                <label>${t('lblEntity')}</label>
                 <ha-entity-picker data-ei="${i}" allow-custom-entity></ha-entity-picker>
               </div>
               <div class="row" style="margin-bottom:0">
-                <label>📝 Tên hiển thị <span style="font-weight:400;opacity:.7">(tuỳ chọn, để trống = dùng tên HA)</span></label>
-                <input type="text" class="ent-name" data-ei="${i}" placeholder="vd: Đèn phòng khách" value="${item.name || ''}"/>
+                <label>${t('lblDisplayName')} <span style="font-weight:400;opacity:.7">${t('lblDisplayNameHint')}</span></label>
+                <input type="text" class="ent-name" data-ei="${i}" placeholder="${t('lblDisplayNamePlaceholder')}" value="${item.name || ''}"/>
               </div>
             </div>`;
           }).join('')}
@@ -2194,18 +2738,18 @@ class LiveDeskEditor extends HTMLElement {
     <!-- ══ TTS ══ -->
     <div class="acc-wrap">
       <div class="acc-head" id="head-tts">
-        <span>🔊 Giọng nói (TTS)</span>
+        <span>${t('secTTS')}</span>
         <span class="acc-arrow" id="arrow-tts">${this._open.tts ? '▾' : '▸'}</span>
       </div>
       <div class="acc-body" id="body-tts" style="display:${this._open.tts ? 'block' : 'none'}">
 
         <div class="row" style="margin-bottom:14px">
-          <label>⚙️ Engine TTS</label>
+          <label>${t('lblTTSEngine')}</label>
           <div class="bg" id="ttsEngGrid">
-            <div class="ob ${ttsEng === 'webspeech' ? 'on' : ''}"       data-eng="webspeech">🗣️ WebSpeech</div>
-            <div class="ob ${ttsEng === 'google_translate' ? 'on' : ''}" data-eng="google_translate">🌐 Google TTS</div>
-            <div class="ob ${ttsEng === 'ha_service' ? 'on' : ''}"       data-eng="ha_service">🏠 HA Service</div>
-            <div class="ob ${ttsEng === 'none' ? 'on' : ''}"             data-eng="none">🔇 Tắt</div>
+            <div class="ob ${ttsEng === 'webspeech' ? 'on' : ''}"       data-eng="webspeech">${t('engWebSpeech')}</div>
+            <div class="ob ${ttsEng === 'google_translate' ? 'on' : ''}" data-eng="google_translate">${t('engGoogle')}</div>
+            <div class="ob ${ttsEng === 'ha_service' ? 'on' : ''}"       data-eng="ha_service">${t('engHA')}</div>
+            <div class="ob ${ttsEng === 'none' ? 'on' : ''}"             data-eng="none">${t('engNone')}</div>
           </div>
         </div>
 
@@ -2214,7 +2758,7 @@ class LiveDeskEditor extends HTMLElement {
           <div class="sec-opts">
             <div style="font-size:11px;font-weight:700;color:var(--secondary-text-color);margin-bottom:10px;letter-spacing:.4px">🗣️ WEB SPEECH API</div>
             <div class="sl-row">
-              <label>🌐 Ngôn ngữ</label>
+              <label>${t('lblWSLang')}</label>
               <div class="bg" style="flex:1">
                 ${[['vi-VN','🇻🇳 VI'],['en-US','🇺🇸 EN'],['ja-JP','🇯🇵 JP'],['zh-CN','🇨🇳 ZH']].map(
                   ([v,l]) => `<div class="ob ${ttsLang === v ? 'on' : ''}" data-tts-lang="${v}">${l}</div>`
@@ -2222,12 +2766,12 @@ class LiveDeskEditor extends HTMLElement {
               </div>
             </div>
             <div class="sl-row">
-              <label>⏩ Tốc độ đọc</label>
+              <label>${t('lblWSRate')}</label>
               <input type="range" id="ttsRateSl" min="0.5" max="2.0" step="0.05" value="${ttsRate}"/>
               <span class="slv" id="ttsRateV">${parseFloat(ttsRate).toFixed(2)}</span>
             </div>
             <div class="sl-row" style="margin-bottom:0">
-              <label>🎵 Cao độ (pitch)</label>
+              <label>${t('lblWSPitch')}</label>
               <input type="range" id="ttsPitchSl" min="0" max="2" step="0.1" value="${ttsPitch}"/>
               <span class="slv" id="ttsPitchV">${parseFloat(ttsPitch).toFixed(1)}</span>
             </div>
@@ -2237,10 +2781,10 @@ class LiveDeskEditor extends HTMLElement {
         <!-- Google Translate options -->
         <div class="tts-section ${ttsEng === 'google_translate' ? 'show' : ''}" id="tts-google_translate">
           <div class="sec-opts">
-            <div style="font-size:11px;font-weight:700;color:var(--secondary-text-color);margin-bottom:10px;letter-spacing:.4px">🌐 GOOGLE TRANSLATE TTS</div>
-            <div class="hint" style="margin-bottom:8px">Dùng API Google Translate (không cần cấu hình HA). Giới hạn ~200 ký tự/lần.</div>
+            <div style="font-size:11px;font-weight:700;color:var(--secondary-text-color);margin-bottom:10px;letter-spacing:.4px">${t('lblGTTitle')}</div>
+            <div class="hint" style="margin-bottom:8px">${t('lblGTHint')}</div>
             <div class="row" style="margin-bottom:0">
-              <label>🌐 Mã ngôn ngữ</label>
+              <label>${t('lblGTLang')}</label>
               <div class="bg">
                 ${[['vi','🇻🇳 vi'],['en','🇺🇸 en'],['ja','🇯🇵 ja'],['zh-CN','🇨🇳 zh']].map(
                   ([v,l]) => `<div class="ob ${(cfg.tts && cfg.tts.lang) === v ? 'on' : ''}" data-tts-lang="${v}">${l}</div>`
@@ -2253,26 +2797,26 @@ class LiveDeskEditor extends HTMLElement {
         <!-- HA Service options -->
         <div class="tts-section ${ttsEng === 'ha_service' ? 'show' : ''}" id="tts-ha_service">
           <div class="sec-opts">
-            <div style="font-size:11px;font-weight:700;color:var(--secondary-text-color);margin-bottom:10px;letter-spacing:.4px">🏠 HOME ASSISTANT TTS SERVICE</div>
+            <div style="font-size:11px;font-weight:700;color:var(--secondary-text-color);margin-bottom:10px;letter-spacing:.4px">${t('lblHATitle')}</div>
             <div class="row">
-              <label>⚙️ Service <span style="font-weight:400;opacity:.7">(vd: tts.speak, tts.google_translate_say)</span></label>
+              <label>${t('lblHAService')} <span style="font-weight:400;opacity:.7">${t('lblHAServiceHint')}</span></label>
               <input type="text" id="ttsSvcInput" placeholder="tts.speak" value="${ttsSvc}"/>
             </div>
             <div class="row">
-              <label>🎯 Entity ID <span style="font-weight:400;opacity:.7">(TTS entity hoặc media_player tùy service)</span></label>
+              <label>${t('lblHAEntityId')} <span style="font-weight:400;opacity:.7">${t('lblHAEntityHint')}</span></label>
               <ha-entity-picker id="ttsEntityPicker" allow-custom-entity></ha-entity-picker>
             </div>
             <div class="row" style="margin-bottom:0">
-              <label>📻 Media player <span style="font-weight:400;opacity:.7">(tuỳ chọn — nếu dùng tts.speak)</span></label>
+              <label>${t('lblHAMedia')} <span style="font-weight:400;opacity:.7">${t('lblHAMediaHint')}</span></label>
               <ha-entity-picker id="ttsMpPicker" data-domain="media_player" allow-custom-entity></ha-entity-picker>
             </div>
-            <div class="hint" style="margin-top:8px">Nếu để trống Media player → HA sẽ fetch URL audio rồi phát trên trình duyệt (giọng giống loa vật lý).</div>
+            <div class="hint" style="margin-top:8px">${t('lblHANoMedia')}</div>
           </div>
         </div>
 
         <!-- None state -->
         <div class="tts-section ${ttsEng === 'none' ? 'show' : ''}" id="tts-none">
-          <div class="hint" style="padding:8px 0">🔇 TTS đã tắt hoàn toàn. Nhân vật vẫn hiện bubble văn bản nhưng không đọc to.</div>
+          <div class="hint" style="padding:8px 0">${t('lblNoneHint')}</div>
         </div>
 
       </div>
@@ -2280,13 +2824,27 @@ class LiveDeskEditor extends HTMLElement {
 
     <!-- YAML preview hint -->
     <div style="margin:8px 14px 4px;padding:10px 12px;background:var(--secondary-background-color);border-radius:8px;border:1px solid var(--divider-color);font-size:11px;color:var(--secondary-text-color);line-height:1.6">
-      💡 <strong>Tip:</strong> Sau khi chỉnh xong, bấm <strong>LƯU</strong> để lưu. Có thể chỉnh thêm trong tab YAML nếu cần cấu hình nâng cao.
+      ${t('lblTip')}
     </div>`;
 
     // ── Accordion toggles ────────────────────────────────────────
     ['general', 'appearance', 'sensors', 'alerts', 'devices', 'tts'].forEach(id => {
       const h = this.shadowRoot.getElementById('head-' + id);
       if (h) h.addEventListener('click', () => this._toggle(id));
+    });
+
+    // ── Language switcher ────────────────────────────────────────
+    const langVI = this.shadowRoot.getElementById('langVI');
+    const langEN = this.shadowRoot.getElementById('langEN');
+    if (langVI) langVI.addEventListener('click', () => {
+      try { localStorage.setItem('nep_lang', 'vi'); } catch(e){}
+      const c = { ...this._config, lang: 'vi' };
+      this._config = c; this._fire(); this._render();
+    });
+    if (langEN) langEN.addEventListener('click', () => {
+      try { localStorage.setItem('nep_lang', 'en'); } catch(e){}
+      const c = { ...this._config, lang: 'en' };
+      this._config = c; this._fire(); this._render();
     });
 
     // ── Owner name ───────────────────────────────────────────────
@@ -2473,8 +3031,8 @@ if (!customElements.get('live-desk-editor')) {
   customElements.define('live-desk-editor', LiveDeskEditor);
 }
 
-// ── Hook editor vào card ─────────────────────────────────────
-// Cần patch LiveDesk để HA biết có editor
+// ── Hook editor into card ─────────────────────────────────────
+// Patch LiveDesk so HA knows there is an editor
 LiveDesk.getConfigElement = function() {
   return document.createElement('live-desk-editor');
 };
@@ -2492,6 +3050,6 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'live-desk',
   name: 'LiveDesk',
-  description: 'LiveDesk — Live2D waifu trên dashboard, bubble thông minh, TTS linh hoạt',
+  description: 'LiveDesk — Live2D waifu dashboard, smart bubbles, flexible TTS',
   preview: true,
 });
