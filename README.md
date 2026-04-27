@@ -1,7 +1,7 @@
 # 💜 LiveDesk
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-![version](https://img.shields.io/badge/version-1.0-blue)
+![version](https://img.shields.io/badge/version-1.1-blue)
 ![HA](https://img.shields.io/badge/Home%20Assistant-2023.1+-green)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
@@ -18,6 +18,7 @@ One card. Zero dependencies. Drops straight into Home Assistant.
 ![LiveDesk Preview](assets/preview1.png)
 
 ![LiveDesk Preview](assets/preview2.png)
+
 ---
 
 ## ✨ What makes this different
@@ -30,54 +31,98 @@ Most Lovelace cards show data. LiveDesk gives that data **a voice and a face**. 
 
 ---
 
-### 💜 7 Anime Characters — switchable in one tap
+### 💜 27 Anime Characters — switchable with ◀ ▶ buttons
 
-Seven hand-picked Live2D anime characters, each with her own personality, greeting, and nickname. Switch between them directly on the card — the character loads instantly from a CDN with no local files needed.
+Twenty-seven hand-picked Live2D anime characters, each with her own personality, greeting, and nickname. Switch between them directly on the card using the ◀ Prev and ▶ Next buttons — the character loads instantly from a CDN with no local files needed. The last chosen character is remembered via `localStorage`.
+
+**Hyperdimension Neptunia:**
 
 | Character | Personality |
 |-----------|-------------|
 | **Neptune 💜** | Cheerful, bubbly, calls herself "Nep" |
+| **Neptune Sailor ⚓** | Nep in sailor outfit — nautical energy |
+| **Neptune Santa 🎅** | Holiday Nep, brings gifts |
 | **Vert 💚** | Calm and mature, onee-san energy |
+| **Vert Classic 🌿** | Classic outfit variant |
 | **Koharu 🌸** | Sweet and gentle, spring vibes |
 | **Shizuku ❄️** | Cool and collected — has real sound files |
 | **Noire 🖤** | Tsundere, tries to act indifferent |
 | **Uni 🩷** | Energetic younger sister type |
 | **Blanc 📖** | Quiet bookworm, few words but meaningful |
+| **Tia 🧪** | Potion merchant, cheerful researcher |
 
-The 🔄 button on the card cycles through all characters. The last chosen character is remembered via `localStorage` — she'll be there when you come back.
+**Girls' Frontline:**
 
-> **Shizuku** is the only character with actual voice audio files — her sounds will play during interactions in addition to TTS.
+| Character | Personality |
+|-----------|-------------|
+| **HK416 Normal 🎯** | Disciplined, mission-focused |
+| **HK416 Destroy 💥** | Battle-damaged, still fighting |
+| **UMP45 🔫** | Casual guardian, always on watch |
+| **M4A1 🛡️** | Duty-first, steady protector |
+| **SOPMOD-II 🔥** | Explosive personality, loves action |
+| **WA2000 Destroy 🌹** | Tsundere sniper, damaged but proud |
+| **G36 🎯** | Calm analyst, monitors everything |
+| **NTW-20 🔭** | Silent observer, long-range focus |
+| **K2 💜** | Warm protector, always reassuring |
+| **PKP 🎀** | Deceptively gentle, still dangerous |
+| **RFB 🎄** | Festive spirit, brings holiday cheer |
+| **Lewis 🌸** | Kimono variant, refined and poised |
+| **DSR-50 🔴** | Laid-back, invites you to stay a while |
+| **Gelina ⚙️** | Mech enthusiast, DIY spirit |
+
+**Other:**
+
+| Character | Personality |
+|-----------|-------------|
+| **Len Space 🚀** | Cosmic traveller, stargazer vibes |
+
+> **Shizuku** is the only character with actual voice audio files — her sounds play during interactions in addition to TTS.
+
+> Each character has her own pool of unique dialogue lines that cycle through the bubble automatically.
+
+---
+
+### 🌐 Bilingual Interface — English & Vietnamese
+
+LiveDesk ships with full English and Vietnamese support. Switch languages directly from the visual editor — every UI label, greeting bubble, sensor reaction message, alert, and character dialogue switches instantly. No reload required.
+
+- **Editor UI** — all section labels, field hints, and button text switch with the language toggle
+- **Character greetings** — each of the 27 characters has localised greeting text for both languages
+- **Sensor reactions** — temperature, humidity, weather, and alert messages are fully translated
+- **Greeting bubbles** — time-of-day greetings, idle quotes, and click reactions all adapt to the selected language
+- **Device tooltips** — hover descriptions for toolbar entities switch language too
+
+The selected language is saved to `localStorage` and restored on every page load.
 
 ---
 
 ### 🗂️ Mini Mode — shrinks to corner, pins to every view
 
-Tap the **📌 Pin** button and the character collapses into a compact floating widget — anchored to the bottom corner of your screen. She stays visible as you navigate between dashboards, views, and subpages. Switch back to full card mode anytime with a single tap.
+Tap the **📌 Pin** button and the character collapses into a compact floating widget — anchored to the bottom-right corner of your screen. She stays visible as you navigate between dashboards, views, and subpages. Switch back to full card mode anytime with a single tap.
 
 **What Mini Mode does:**
 - Character shrinks and floats to the bottom-right corner of the browser window
 - Persists across all Lovelace views — she follows you everywhere
 - Speech bubble still pops up with reactions and alerts
 - TTS still speaks — you'll hear her even when she's minimized
-- Tap the pinned character to expand back to full card
-
-This is the feature that makes LiveDesk feel like a real companion rather than just a card. She's always there — not just on the dashboard view where the card lives.
+- Double-click the pinned character to expand back to full card
 
 ---
 
 ### 💬 Smart Greeting Bubbles — context-aware, always fresh
 
-The speech bubble doesn't just say "Hello." It knows what time it is, what the weather is doing, and how warm it is — and it greets you accordingly.
+The speech bubble knows what time it is, what the weather is doing, and how warm it is — and it greets you accordingly.
 
 **Greeting logic:**
-- **Morning / Afternoon / Evening / Night** — different greeting sets for each period
+- **Morning / Noon / Afternoon / Evening / Night** — different greeting sets for each period
 - **Temperature reaction** — too cold 🥶, comfortable 😊, hot 🥵, scorching 🔥
 - **Humidity reaction** — dry air warning, comfortable range, muggy alert
 - **Weather reaction** — sunny ☀️, rainy 🌧️, stormy ⛈️, foggy 🌫️, snowy ❄️, and more
 - **Owner name** — the character calls you by the name you set in config
 - **Character nickname** — fully customisable (`{c}` in every message resolves to her name)
+- **Per-character idle quotes** — each character has her own pool of personality-driven lines
 
-The bubble cycles automatically every 3 seconds through available messages. You'll never see the same greeting twice in a row.
+The bubble cycles automatically every 5 seconds through available messages.
 
 ---
 
@@ -107,8 +152,6 @@ The character speaks every greeting and alert out loud. Four TTS engines are sup
 | **HA Service (legacy)** | `tts.google_translate_say` / `tts.cloud_say` — older setups |
 | **None** | Disable TTS completely |
 
-Configurable per character nickname — the character introduces herself by her own name when TTS fires.
-
 ```yaml
 tts:
   engine: ha_service
@@ -130,7 +173,7 @@ humid_sensor:   sensor.humidity
 weather_entity: weather.home
 ```
 
-Temperature thresholds: ≤16°C 🥶 · 17–22°C 😊 · 23–28°C 😊 · 29–33°C 🥵 · 34°C+ 🔥
+Temperature thresholds: ≤16°C 🥶 · 17–22°C 😊 · 23–28°C 😊 · 29–33°C 🥵 · 34°C+ 🔥  
 Humidity thresholds: ≤30% 💨 · 31–60% 💧 · 61–80% 💦 · 81%+ 🌊
 
 ---
@@ -138,6 +181,8 @@ Humidity thresholds: ≤30% 💨 · 31–60% 💧 · 61–80% 💦 · 81%+ 🌊
 ### 🔧 Device Toolbar — quick controls
 
 Add any Home Assistant entities to the toolbar inside the card — lights, fans, switches, climate, covers, media players, cameras, sensors, automations, scripts, scenes, locks, vacuums, and more. The card auto-detects the device type from the entity ID prefix and applies the correct icon and label.
+
+When hovering over any entity button on the dashboard, the character introduces that device with a personalised line — localised to the selected interface language.
 
 ```yaml
 entities:
@@ -147,8 +192,6 @@ entities:
   - entity: switch.tv_socket
   - entity: climate.aircon
 ```
-
-Each button shows current state and toggles the entity on tap.
 
 ---
 
@@ -163,9 +206,9 @@ Everything configurable without touching YAML. The editor uses accordion section
 | 🌡️ **Sensors** | Temperature, humidity, weather entity |
 | 🚨 **Alerts** | Motion, door, smoke sensor |
 | 🔊 **TTS** | Engine, language, rate, pitch, HA service config |
-| 🔧 **Devices** | Entity list with names (up to 12) |
+| 🏠 **Devices** | Entity list with names (up to 12) |
 
-Badge counters on each section show how many entities are connected.
+Badge counters on each section show how many entities are connected. A language switcher at the top of the editor toggles between 🇻🇳 Vietnamese and 🇬🇧 English instantly.
 
 ---
 
@@ -222,6 +265,7 @@ height: 440                       # card height in px
 float_height: 650                 # mini mode character height
 float_width:  400                 # mini mode width
 card_blur: 8                      # background blur (0 = fully transparent)
+lang: en                          # interface language: en or vi (default vi)
 
 temp_sensor:    sensor.temperature
 humid_sensor:   sensor.humidity
@@ -232,7 +276,7 @@ smoke_sensor:   binary_sensor.smoke_detector
 
 tts:
   engine: webspeech
-  lang: vi-VN
+  lang: en-US
   rate: 1.05
   pitch: 1.2
 
@@ -250,8 +294,9 @@ entities:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `name` | `bạn` | Owner name — used in greetings |
+| `name` | `you` / `bạn` | Owner name — used in greetings |
 | `char_nickname` | *(character default)* | Override character's self-name |
+| `lang` | `vi` | Interface language: `en` or `vi` |
 | `height` | `440` | Card height (px) |
 | `float_height` | `650` | Mini mode character height (px) |
 | `float_width` | `400` | Mini mode width (px) |
@@ -272,7 +317,7 @@ entities:
 ```yaml
 tts:
   engine: webspeech
-  lang: vi-VN      # optional
+  lang: en-US      # optional
   rate: 1.05       # 0.5–2.0
   pitch: 1.2       # 0–2
 ```
@@ -281,7 +326,7 @@ tts:
 ```yaml
 tts:
   engine: google_translate
-  lang: vi
+  lang: en
 ```
 
 #### HA Service — tts.speak (HA 2023.8+, recommended)
@@ -289,7 +334,7 @@ tts:
 tts:
   engine: ha_service
   service: tts.speak
-  entity_id: tts.google_translate_vi_com
+  entity_id: tts.google_translate_en_com
   media_player_entity_id: media_player.living_room_speaker  # optional
   cache: true
 ```
@@ -300,7 +345,7 @@ tts:
   engine: ha_service
   service: tts.google_translate_say
   entity_id: media_player.living_room_speaker
-  lang: vi
+  lang: en
 ```
 
 #### Disable TTS
@@ -325,10 +370,18 @@ tts:
 
 ## 📋 Changelog
 
+### v1.1.0
+- 🌐 **Full bilingual support** — English and Vietnamese, switchable live from the editor; greetings, sensor reactions, alerts, device tooltips, and all UI text adapt instantly
+- 💜 **27 characters** — added 20 new characters: Neptune Sailor, Neptune Santa, Vert Classic, Tia, HK416 (Normal & Destroy), UMP45, M4A1, SOPMOD-II, WA2000 Destroy, G36, NTW-20, K2, PKP, RFB, Lewis, DSR-50, Gelina, Len Space — each with unique dialogue pool and bilingual greeting
+- 🔄 **◀ Prev / ▶ Next navigation** — replaced single cycle button with two-directional character switching
+- 🔁 **Reload button** — instantly reloads character iframe without full page refresh, with localised status message
+- 🏠 **Bilingual device tooltips** — hover descriptions for all 17 entity domains now fully translated
+- 🌐 **`lang` config key** — set interface language via YAML in addition to the editor toggle
+
 ### v1.0.0
 - 💜 **7 anime characters** — Neptune, Vert, Koharu, Shizuku, Noire, Uni, Blanc — switchable via 🔄 button, saved in localStorage
 - 📌 **Mini Mode / Pin** — character collapses to floating corner widget, persists across all Lovelace views
-- 💬 **Smart greeting bubbles** — time-aware, sensor-driven, cycles automatically every 3s
+- 💬 **Smart greeting bubbles** — time-aware, sensor-driven, cycles automatically every 5s
 - 🌡️ **Live sensor reactions** — temperature, humidity, weather conditions, all with contextual messages
 - 🚨 **Real-time alert system** — motion, door, smoke binary sensors with instant character reaction
 - 🔊 **4 TTS engines** — Web Speech, Google Translate, HA Service (tts.speak + legacy), or None
@@ -349,5 +402,5 @@ If LiveDesk makes your dashboard feel alive, please ⭐ **star the repo** — it
 
 Built by **[@doanlong1412](https://github.com/doanlong1412)** from 🇻🇳 Vietnam.
 
-Live2D models hosted via [jsdelivr CDN](https://www.jsdelivr.com/) — credits to original model authors.
+Live2D models hosted via [jsdelivr CDN](https://www.jsdelivr.com/) — credits to original model authors.  
 Live2D rendering powered by [live2d-widget](https://github.com/stevenjoezhang/live2d-widget).
