@@ -1,7 +1,7 @@
 # 💜 LiveDesk
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-![version](https://img.shields.io/badge/version-1.1-blue)
+![version](https://img.shields.io/badge/version-1.1.1-blue)
 ![HA](https://img.shields.io/badge/Home%20Assistant-2023.1+-green)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
@@ -114,7 +114,7 @@ Tap the **📌 Pin** button and the character collapses into a compact floating 
 The speech bubble knows what time it is, what the weather is doing, and how warm it is — and it greets you accordingly.
 
 **Greeting logic:**
-- **Morning / Noon / Afternoon / Evening / Night** — different greeting sets for each period
+- **Early morning / Morning / Noon / Afternoon / Evening / Late night** — different greeting sets for each period
 - **Temperature reaction** — too cold 🥶, comfortable 😊, hot 🥵, scorching 🔥
 - **Humidity reaction** — dry air warning, comfortable range, muggy alert
 - **Weather reaction** — sunny ☀️, rainy 🌧️, stormy ⛈️, foggy 🌫️, snowy ❄️, and more
@@ -138,6 +138,8 @@ Wire up binary sensors and the character reacts the moment state changes — no 
 
 Smoke alerts are treated as the highest priority — the message is urgent and emphatic, not playful.
 
+**Welcome home detection** — when both door and motion sensors are configured, LiveDesk can tell the difference between someone arriving and someone leaving. If the door opens while motion is off, then motion triggers within 15 seconds, the character fires a personalised welcome-home reaction with TTS and a dance animation. If motion was already active when the door opened, it's treated as someone leaving and no welcome plays. The welcome fires exactly once per door event.
+
 ---
 
 ### 🔊 TTS — 4 engines, fully configurable
@@ -156,7 +158,7 @@ The character speaks every greeting and alert out loud. Four TTS engines are sup
 tts:
   engine: ha_service
   service: tts.speak
-  entity_id: tts.google_translate_vi_com
+  entity_id: tts.google_translate_en_com
   media_player_entity_id: media_player.living_room_speaker
   cache: true
 ```
@@ -259,7 +261,7 @@ Then click **✏️ Edit** — the visual editor handles the rest.
 
 ```yaml
 type: custom:live-desk
-name: Long                        # your name — the character calls you this
+name: Alex                        # your name — the character calls you this
 char_nickname: Nep                # optional: override character's self-name
 height: 440                       # card height in px
 float_height: 650                 # mini mode character height
@@ -279,6 +281,9 @@ tts:
   lang: en-US
   rate: 1.05
   pitch: 1.2
+
+toolbar_enabled: true
+alert_tts_enabled: true
 
 entities:
   - entity: light.living_room
@@ -301,6 +306,8 @@ entities:
 | `float_height` | `650` | Mini mode character height (px) |
 | `float_width` | `400` | Mini mode width (px) |
 | `card_blur` | `8` | Background blur (0–30) |
+| `toolbar_enabled` | `false` | Enable device toolbar & hover reactions |
+| `alert_tts_enabled` | `true` | Read alerts aloud via TTS |
 | `temp_sensor` | — | Temperature sensor entity |
 | `humid_sensor` | — | Humidity sensor entity |
 | `weather_entity` | — | HA weather entity |
@@ -370,6 +377,13 @@ tts:
 
 ## 📋 Changelog
 
+### v1.1.1
+- 🔧 **`_ownerName()` helper** — centralised owner name resolution; removes repeated inline fallback scattered across the codebase
+- 🌍 **`getStubConfig` neutral entity IDs** — default stub now uses `sensor.temperature` / `sensor.humidity` instead of Vietnamese-named entities
+- 💜 **Vietnamese dialogue for 12 new characters** — `byModel_vi` now includes full personality-matched quote pools for Neptune Sailor, Neptune Santa, Vert Classic, G36, NTW-20, Len Space, K2, PKP, RFB, Lewis, DSR-50, and Gelina; `lang: vi` no longer falls back to Neptune for these characters
+- 🏠 **Welcome home detection** — when door + motion sensors are both configured, the character now distinguishes arrivals from departures; a personalised welcome with TTS and dance animation fires when motion triggers within 15 s of door opening (only if motion was off at door open time); fires exactly once per door event
+- 📋 **Config reference** — added missing `toolbar_enabled` and `alert_tts_enabled` fields to documentation
+
 ### v1.1.0
 - 🌐 **Full bilingual support** — English and Vietnamese, switchable live from the editor; greetings, sensor reactions, alerts, device tooltips, and all UI text adapt instantly
 - 💜 **27 characters** — added 20 new characters: Neptune Sailor, Neptune Santa, Vert Classic, Tia, HK416 (Normal & Destroy), UMP45, M4A1, SOPMOD-II, WA2000 Destroy, G36, NTW-20, K2, PKP, RFB, Lewis, DSR-50, Gelina, Len Space — each with unique dialogue pool and bilingual greeting
@@ -393,7 +407,7 @@ tts:
 
 ## 📄 License
 
-MIT — free to use, modify, and distribute.
+MIT — free to use, modify, and distribute.  
 If LiveDesk makes your dashboard feel alive, please ⭐ **star the repo** — it genuinely helps.
 
 ---

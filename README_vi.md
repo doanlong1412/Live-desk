@@ -1,7 +1,7 @@
 # 💜 LiveDesk
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-![version](https://img.shields.io/badge/version-1.1-blue)
+![version](https://img.shields.io/badge/version-1.1.1-blue)
 ![HA](https://img.shields.io/badge/Home%20Assistant-2023.1+-green)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
@@ -16,6 +16,7 @@ Một card. Không cần cài thêm gì. Chạy thẳng vào Home Assistant.
 ## 📸 Preview
 
 ![LiveDesk Preview](assets/preview1.png)
+
 ![LiveDesk Preview](assets/preview2.png)
 
 ---
@@ -137,6 +138,8 @@ Kết nối binary sensor và nhân vật phản ứng ngay khi trạng thái th
 
 Cảnh báo khói được ưu tiên cao nhất — câu nói mang tính khẩn cấp và quyết đoán, không vui vẻ.
 
+**Nhận biết người về nhà** — khi cả door sensor lẫn motion sensor đều được cấu hình, LiveDesk phân biệt được người vào hay người ra. Nếu cửa mở trong khi motion đang tắt, rồi motion bật trong vòng 15 giây sau — nhân vật kích hoạt lời chào về nhà kèm TTS và animation nhảy mừng. Nếu motion đã bật từ trước khi cửa mở thì xem là người đang ra ngoài và không phát lời chào. Mỗi lần mở cửa chỉ kích hoạt welcome đúng một lần.
+
 ---
 
 ### 🔊 TTS — 4 engine, cấu hình linh hoạt
@@ -167,8 +170,8 @@ tts:
 Kết nối cảm biến nhiệt độ, độ ẩm và thời tiết để nhân vật phản ứng thời gian thực mỗi khi giá trị chuyển sang ngưỡng mới.
 
 ```yaml
-temp_sensor:    sensor.nhiet_do
-humid_sensor:   sensor.do_am
+temp_sensor:    sensor.temperature
+humid_sensor:   sensor.humidity
 weather_entity: weather.home
 ```
 
@@ -266,18 +269,21 @@ float_width:  400                 # chiều rộng chế độ mini
 card_blur: 8                      # độ mờ nền (0 = trong suốt hoàn toàn)
 lang: vi                          # ngôn ngữ giao diện: vi hoặc en (mặc định vi)
 
-temp_sensor:    sensor.nhiet_do
-humid_sensor:   sensor.do_am
+temp_sensor:    sensor.temperature
+humid_sensor:   sensor.humidity
 weather_entity: weather.home
-motion_sensor:  binary_sensor.chuyen_dong
-door_sensor:    binary_sensor.cua_chinh
-smoke_sensor:   binary_sensor.bao_khoi
+motion_sensor:  binary_sensor.motion
+door_sensor:    binary_sensor.front_door
+smoke_sensor:   binary_sensor.smoke_detector
 
 tts:
   engine: webspeech
   lang: vi-VN
   rate: 1.05
   pitch: 1.2
+
+toolbar_enabled: true
+alert_tts_enabled: true
 
 entities:
   - entity: light.phong_khach
@@ -300,6 +306,8 @@ entities:
 | `float_height` | `650` | Chiều cao nhân vật chế độ mini (px) |
 | `float_width` | `400` | Chiều rộng chế độ mini (px) |
 | `card_blur` | `8` | Độ mờ nền (0–30) |
+| `toolbar_enabled` | `false` | Bật toolbar thiết bị & hover reaction |
+| `alert_tts_enabled` | `true` | Đọc cảnh báo bằng TTS |
 | `temp_sensor` | — | Entity cảm biến nhiệt độ |
 | `humid_sensor` | — | Entity cảm biến độ ẩm |
 | `weather_entity` | — | Entity thời tiết HA |
@@ -360,7 +368,7 @@ tts:
 | | |
 |---|---|
 | Home Assistant | 2023.1+ |
-| Lovelace | Default & custom dashboard |
+| Lovelace | Default & custom dashboards |
 | Thiết bị | Mobile & Desktop |
 | Dependencies | **Không cần cài thêm** |
 | Trình duyệt | Chrome, Firefox, Safari, Edge |
@@ -368,6 +376,13 @@ tts:
 ---
 
 ## 📋 Changelog
+
+### v1.1.1
+- 🔧 **Helper `_ownerName()`** — tập trung logic lấy tên chủ nhân vào một chỗ; loại bỏ đoạn fallback lặp rải rác trong code
+- 🌍 **`getStubConfig` entity ID trung tính** — stub mặc định dùng `sensor.temperature` / `sensor.humidity` thay vì entity ID tiếng Việt
+- 💜 **Câu thoại tiếng Việt cho 12 nhân vật mới** — `byModel_vi` bổ sung đầy đủ pool câu thoại theo cá tính cho Neptune Sailor, Neptune Santa, Vert Classic, G36, NTW-20, Len Space, K2, PKP, RFB, Lewis, DSR-50 và Gelina; `lang: vi` không còn fallback về Neptune với các nhân vật này
+- 🏠 **Nhận biết người về nhà** — khi cả door sensor lẫn motion sensor đều được cấu hình, nhân vật phân biệt người vào / người ra; lời chào kèm TTS và animation nhảy mừng kích hoạt khi motion bật trong vòng 15 giây sau khi cửa mở (chỉ khi motion đang tắt lúc cửa mở); mỗi lần mở cửa chỉ kích hoạt đúng một lần
+- 📋 **Tham chiếu cấu hình** — bổ sung hai field còn thiếu `toolbar_enabled` và `alert_tts_enabled` vào tài liệu
 
 ### v1.1.0
 - 🌐 **Hỗ trợ song ngữ đầy đủ** — Tiếng Việt và Tiếng Anh, chuyển đổi trực tiếp từ editor; lời chào, phản ứng sensor, cảnh báo, tooltip thiết bị và toàn bộ giao diện đều chuyển ngay lập tức
@@ -392,7 +407,7 @@ tts:
 
 ## 📄 License
 
-MIT — tự do sử dụng, chỉnh sửa, phân phối.
+MIT — tự do sử dụng, chỉnh sửa, phân phối.  
 Nếu LiveDesk khiến dashboard của bạn thêm sống động, hãy ⭐ **star repo** để ủng hộ nhé!
 
 ---
