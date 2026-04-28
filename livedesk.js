@@ -1,6 +1,67 @@
 /**
- * livedesk.js  v1.1
-
+ * livedesk.js  v1.1.1
+ * Config YAML:
+ *   type: custom:live-desk
+ *   name: Anh Long          # tên hiển thị trong lời chào
+ *   temp_sensor:    sensor.nhiet_do
+ *   humid_sensor:   sensor.do_am
+ *   weather_entity: weather.home
+ *   motion_sensor:  binary_sensor.chuyen_dong
+ *   door_sensor:    binary_sensor.cua_chinh
+ *   smoke_sensor:   binary_sensor.bao_khoi
+ *   height: 440
+ *   float_height: 500
+ *   float_width:  320
+ *
+ *   # ── TTS ENGINE ─────────────────────────────────────────────
+ *   # Chọn một trong các mode sau:
+ *
+ *   # 1. Web Speech API (mặc định, không cần cấu hình)
+ *   tts:
+ *     engine: webspeech       # dùng giọng nói có sẵn trong trình duyệt
+ *     lang: vi-VN             # tuỳ chọn, mặc định vi-VN
+ *     rate: 1.05              # tuỳ chọn, 0.5–2.0
+ *     pitch: 1.2              # tuỳ chọn, 0–2
+ *
+ *   # 2. Google Translate TTS (không cần addon HA)
+ *   tts:
+ *     engine: google_translate # gọi API Google Translate TTS qua audio tag
+ *     lang: vi                 # mã ngôn ngữ Google (vi, en, ja, ...)
+ *
+ *   # 3. Home Assistant TTS service
+ *
+ *   # Kiểu mới HA 2023.8+ — dùng tts.speak (KHUYÊN DÙNG)
+ *   tts:
+ *     engine: ha_service
+ *     service: tts.speak
+ *     entity_id: tts.google_translate_vi_com          # TTS entity (tts.xxx)
+ *     media_player_entity_id: media_player.loa_phong  # tuỳ chọn:
+ *                                                     #   có → phát qua loa HA
+ *                                                     #   bỏ → fetch audio URL từ HA rồi
+ *                                                     #        phát trên trình duyệt/app
+ *                                                     #        (giọng giống hệt loa vật lý)
+ *     cache: true
+ *
+ *   # Kiểu cũ — tts.google_translate_say / tts.cloud_say
+ *   tts:
+ *     engine: ha_service
+ *     service: tts.google_translate_say
+ *     entity_id: media_player.loa_phong_khach         # media_player entity
+ *     lang: vi
+ *
+ *   # 4. Tắt TTS hoàn toàn
+ *   tts:
+ *     engine: none
+ *   # ────────────────────────────────────────────────────────────
+ *
+ *   entities:               # danh sách thiết bị hiển thị nút trong toolbar
+ *                           # chỉ hoạt động khi toolbar_enabled: true
+ *   toolbar_enabled: false  # mặc định tắt — bật lên để nhân vật phản ứng khi hover vào thiết bị
+ *   alert_tts_enabled: true # mặc định bật — tắt nếu không muốn đọc cảnh báo qua TTS
+ *     - entity: light.phong_khach
+ *       name: Đèn phòng khách   # tuỳ chọn, nếu bỏ sẽ dùng friendly_name từ HA
+ *     - entity: fan.phong_ngu
+ *     - entity: switch.o_cam_tivi
  */
 
 // ─── Models ──────────────────────────────────────────────────
@@ -126,7 +187,7 @@ const I18N = {
     // Return from float
     returnMsg: n => `${n} về nhà rồi nha~ 🏠💜 Nhớ ${n} hông?`,
     // Editor sections
-    editorHeader: 'LiveDesk v1.1 — Live2D Waifu Dashboard',
+    editorHeader: 'LiveDesk v1.1.1 — Live2D Waifu Dashboard',
     editorBy: '@doanlong1412 từ 🇻🇳 Vietnam',
     secGeneral:   '⚙️ Cài đặt chung',
     secAppear:    '🎨 Giao diện & Hiệu ứng',
@@ -154,10 +215,14 @@ const I18N = {
     lblHumidSensor:'💧 Cảm biến độ ẩm',
     lblWeatherEnt:'⛅ Entity thời tiết',
     lblAlertsHint:'Nhân vật sẽ phát cảnh báo ngay khi sensor thay đổi trạng thái.',
+    lblAlertTts:  '🔊 Đọc cảnh báo bằng TTS',
+    lblAlertTtsHint:'Khi bật, mỗi cảnh báo sẽ được đọc qua TTS (theo cấu hình TTS bên dưới). Mặc định bật.',
     lblMotionSensor:'🚶 Cảm biến chuyển động',
     lblDoorSensor:'🚪 Cảm biến cửa',
     lblSmokeSensor:'🔥 Cảm biến khói / báo cháy',
     lblDevicesHint:'Các entity được hiện thành nút trong toolbar. Hover vào nút bất kỳ trên dashboard để nhân vật giới thiệu thiết bị đó.',
+    lblToolbarEnable:'🔌 Bật chức năng thiết bị toolbar',
+    lblToolbarEnableHint:'Mặc định tắt — bật lên nếu bạn muốn nhân vật phản ứng khi hover vào thiết bị.',
     lblDeviceCount:'Số thiết bị',
     lblDeviceN:   i => `Thiết bị ${i + 1}`,
     lblEntity:    '⚡ Entity',
@@ -267,10 +332,14 @@ const I18N = {
     lblHumidSensor:'💧 Humidity sensor',
     lblWeatherEnt:'⛅ Weather entity',
     lblAlertsHint:'The character will alert you immediately when a sensor changes state.',
+    lblAlertTts:  '🔊 Read alerts via TTS',
+    lblAlertTtsHint:'When enabled, each alert will be read aloud via TTS (using the TTS config below). On by default.',
     lblMotionSensor:'🚶 Motion sensor',
     lblDoorSensor:'🚪 Door sensor',
     lblSmokeSensor:'🔥 Smoke / fire sensor',
     lblDevicesHint:'Entities shown as buttons in the toolbar. Hover over any button on the dashboard for character commentary.',
+    lblToolbarEnable:'🔌 Enable toolbar device feature',
+    lblToolbarEnableHint:'Off by default — enable if you want the character to react when hovering over devices.',
     lblDeviceCount:'Number of devices',
     lblDeviceN:   i => `Device ${i + 1}`,
     lblEntity:    '⚡ Entity',
@@ -361,7 +430,14 @@ const ALERT_MSGS_EN = {
     on:['⚠️ SMOKE DETECTED! Check immediately! 🔥🚨','🚨 SMOKE ALERT! Evacuate now, don\'t hesitate!',
         '🚨 Oh no, smoke detected! Get out now! 🔥'],
     off:['No more smoke, what a relief~ 😮‍💨','Smoke cleared! That gave {c} a scare~']
-  }
+  },
+  welcome:[
+    '{n} is HOME~!! 🎉 {c} is SO happy right now, like, flying-level happy!! Missed you SO much!!',
+    'OH MY GOSH {n} is back!! 😭💜 {c} has been waiting all day~ Tell me everything that happened today!!',
+    'YAYYY!! {n} appeared!! 🥳✨ The whole house just got brighter~ {c} knew you\'d come back, hehe~',
+    'WOW {n}!! 🎊💫 {c} was just getting lonely and then you walked in — perfect timing!! Come here, {c} has stories~',
+    '{n}~!! 🌸🎉 Finally finally finally!! {c} had a welcome smile ready and waiting just for you!!'
+  ]
 };
 
 const SENSOR_REACTIONS = {
@@ -408,7 +484,14 @@ const ALERT_MSGS = {
     on:['⚠️ PHÁT HIỆN KHÓI! Kiểm tra ngay đi! 🔥🚨','🚨 CÓ KHÓI RỒI! Thoát ra ngay nha đừng chần chừ!',
         '🚨 Ôi trời ơi có khói! Ra ngoài mau lên! 🔥'],
     off:['Không còn khói nữa rồi, may quá trời~ 😮‍💨','Hết khói rồi nha! Phồng tim {c} luôn á~']
-  }
+  },
+  welcome:[
+    '{n} về rồi aaaaa~!! 🎉 {c} mừng muốn bay lên trời luôn á!! Nhớ {n} ghê lắm đó!!',
+    'Ôi trời ơi {n} về rồi!! 😭💜 {c} đợi cả ngày nay nè~ Hôm nay có chuyện gì vui không kể {c} nghe điiiii!',
+    'Yayyy!! {n} xuất hiện rồi!! 🥳✨ Nhà này vui hẳn lên rồi nha~ {c} đã biết {n} sẽ về mà hihi~',
+    'WOW {n}!! 🎊💫 {c} đang buồn thì {n} về — đúng lúc quá trời!! Mau vào đây {c} kể chuyện hay cho nghe~',
+    '{n} ơi {n}~~!! 🌸🎉 Cuối cùng cũng về rồi!! {c} đã chuẩn bị sẵn nụ cười chào đón {n} từ lâu rồi đó!!'
+  ]
 };
 
 // ─── Device type detection from entity_id ──────────────────
@@ -744,6 +827,32 @@ const CARD_TEMPLATE = `
     background:transparent;
   }
 
+  /* ── Welcome dance animation ── */
+  @keyframes nepDance{
+    0%  {transform:translateY(0) rotate(0deg) scale(1);}
+    10% {transform:translateY(-18px) rotate(-6deg) scale(1.04);}
+    20% {transform:translateY(-6px) rotate(5deg) scale(1.02);}
+    30% {transform:translateY(-22px) rotate(-4deg) scale(1.05);}
+    40% {transform:translateY(-8px) rotate(6deg) scale(1.03);}
+    50% {transform:translateY(-20px) rotate(-5deg) scale(1.05);}
+    60% {transform:translateY(-4px) rotate(4deg) scale(1.02);}
+    70% {transform:translateY(-16px) rotate(-3deg) scale(1.04);}
+    80% {transform:translateY(-6px) rotate(3deg) scale(1.02);}
+    90% {transform:translateY(-10px) rotate(-2deg) scale(1.01);}
+    100%{transform:translateY(0) rotate(0deg) scale(1);}
+  }
+  @keyframes nepDanceBg{
+    0%,100%{box-shadow:0 0 0 0 rgba(180,130,255,0);}
+    30%{box-shadow:0 0 40px 15px rgba(180,130,255,0.18);}
+    60%{box-shadow:0 0 30px 10px rgba(130,200,255,0.14);}
+  }
+  .waifu-area.nep-dancing{
+    animation:nepDanceBg 2.8s ease-in-out;
+  }
+  #nep-l2d-frame.nep-dancing{
+    animation:nepDance 2.8s cubic-bezier(0.36,0.07,0.19,0.97);
+  }
+
   /* Bubble wrapper — right side, level with character's mouth */
   #nep-bubble-wrap{
     position:absolute;
@@ -850,9 +959,60 @@ const CARD_TEMPLATE = `
   .nep-btn.green:hover{background:rgba(120,230,120,0.2);border-color:rgba(120,230,120,0.65);}
   .nep-btn.red{border-color:rgba(255,120,120,0.4);color:#ffc8c8;background:rgba(255,120,120,0.07);}
   .nep-btn.red:hover{background:rgba(255,120,120,0.2);border-color:rgba(255,120,120,0.65);}
+
+  /* ── Welcome popup ── */
+  #nep-welcome-popup{
+    position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%) scale(0.6);
+    z-index:30;pointer-events:none;
+    opacity:0;
+    transition:opacity 0.4s cubic-bezier(0.34,1.56,0.64,1), transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    text-align:center;
+    white-space:nowrap;
+  }
+  #nep-welcome-popup.show{
+    opacity:1;
+    transform:translate(-50%,-50%) scale(1);
+  }
+  .nep-welcome-inner{
+    display:inline-block;
+    background:rgba(255,255,255,0.96);
+    border:2px solid rgba(190,130,255,0.8);
+    border-radius:16px;
+    padding:12px 20px;
+    font-size:13px;font-weight:700;color:#3a1a6e;
+    box-shadow:0 8px 32px rgba(150,80,255,0.28), 0 0 0 4px rgba(180,130,255,0.1);
+    line-height:1.5;
+    max-width:220px;
+    white-space:normal;
+  }
+  .nep-welcome-emoji{
+    display:block;font-size:28px;margin-bottom:4px;
+    animation:nepWelcomeEmoji 0.6s cubic-bezier(0.34,1.56,0.64,1) 0.15s both;
+  }
+  @keyframes nepWelcomeEmoji{
+    0%{transform:scale(0) rotate(-20deg);}
+    100%{transform:scale(1) rotate(0deg);}
+  }
+  @keyframes confettiFly{
+    0%{opacity:1;transform:translate(0,0) rotate(0deg);}
+    100%{opacity:0;transform:translate(var(--cx),var(--cy)) rotate(var(--cr));}
+  }
+  .nep-confetti{
+    position:absolute;width:8px;height:8px;border-radius:2px;
+    animation:confettiFly 1.2s ease-out forwards;
+    pointer-events:none;
+  }
 </style>
 
 <div class="nep-card" id="nepCard">
+  <!-- Welcome popup overlay -->
+  <div id="nep-welcome-popup">
+    <div class="nep-welcome-inner">
+      <span class="nep-welcome-emoji">🎉</span>
+      <span id="nep-welcome-text"></span>
+    </div>
+  </div>
   <div class="nep-win-controls">
     <button class="nep-wbtn nep-wbtn--mini" id="btnMinimize" title="Mini">
       <svg viewBox="0 0 14 14" fill="none"><rect x="2" y="6.5" width="10" height="1.5" rx="0.75" fill="currentColor"/></svg>
@@ -906,6 +1066,9 @@ class LiveDesk extends HTMLElement {
     this._statusIdx    = 0;
     this._statusInterval = null;
     this._idleInterval   = null;  // fix: can be cleared on re-render
+    this._doorOpenedAt   = null;  // timestamp of last door-open for welcome detection
+    this._welcomeFired   = false; // true after welcome played — reset only on door state change
+    this._motionWasOnAtDoor = false; // motion state at moment door opened
     // cache sensor values
     this._curTemp      = null;
     this._curHumid     = null;
@@ -1004,8 +1167,14 @@ class LiveDesk extends HTMLElement {
     const btnSound = this._shadow.getElementById('btnSound');
     btnSound.onclick = () => {
       this._audioEnabled = !this._audioEnabled;
-      if (!this._audioEnabled) { this._stopAudio(); btnSound.textContent = '🔇 TTS'; btnSound.classList.add('red'); btnSound.classList.remove('green'); }
-      else                     { btnSound.textContent = '🔊 TTS'; btnSound.classList.remove('red'); btnSound.classList.add('green'); }
+      if (!this._audioEnabled) {
+        this._stopAudio();
+        btnSound.textContent = _tCard('soundOff');
+        btnSound.classList.add('red'); btnSound.classList.remove('green');
+      } else {
+        btnSound.textContent = _tCard('soundOn');
+        btnSound.classList.remove('red'); btnSound.classList.add('green');
+      }
     };
     this._shadow.getElementById('btnHide').onclick     = () => {
       this._pushStatus(_t(this._config, 'hideMsg', this._cn()), true);
@@ -1084,6 +1253,10 @@ class LiveDesk extends HTMLElement {
 
   // ── Global hover: track ALL cards on dashboard ───────
   _initGlobalHover() {
+    if (!this._config.toolbar_enabled) {
+      window._nepGlobalHoverInit = false; // allow re-init when user enables later
+      return;
+    }
     if (window._nepGlobalHoverInit) return; // inject only once
     window._nepGlobalHoverInit = true;
 
@@ -1172,7 +1345,7 @@ class LiveDesk extends HTMLElement {
 
       if (entityId !== lastEntity) {
         lastEntity = entityId;
-        const name = this._config.name || (_getLang(this._config) === 'en' ? 'you' : 'bạn');
+        const name = this._ownerName();
         this._pushStatus(dev.nep(name, fname).replace('{c}', this._cn()), true);
       }
     };
@@ -1354,8 +1527,10 @@ class LiveDesk extends HTMLElement {
   // ── Character-specific quotes — shared between idle and 💬 button ──
   _getCharQuotes(name, model, charName) {
     charName = charName || this._config.char_nickname?.trim() || model?.name?.replace(/\s*[^\w\s].*/u, '').trim() || 'Nep';
-    const mn = model?.name || '';
-    const byModel = {
+    const mn   = model?.name || '';
+    const isEN = _getLang(this._config) === 'en';
+
+    const byModel_vi = {
       'Neptune 💜': [
         `${name} ơi, cố lên nha! ${charName} cổ vũ hết mình luôn á~ 💜`,
         `${charName} nói thiệt nghen, nhà mình thiệt là thông minh dữ vậy ta! ✨`,
@@ -1495,14 +1670,328 @@ class LiveDesk extends HTMLElement {
         `WA2000 không yếu đâu! Chỉ là... hôm nay vất vả hơn chút xíu~ 💪🌹`,
         `${name} ơi, WA2000 nhắc uống nước đó. Sức khỏe quan trọng hơn niềm kiêu hãnh~ 🌹`,
       ],
+      'Neptune Sailor ⚓': [
+        `Nep Nep thủy thủ báo cáo! ${name} ơi, mọi thứ ổn chứ? ⚓`,
+        `Ahoy ${name}! ${charName} đang lèo lái con thuyền smart home này cho bạn~ ⚓`,
+        `Bộ đồ sailor đẹp không ${name}? ${charName} tự chọn đó nha! ⚓`,
+        `${name} ơi, nhớ uống nước — thủy thủ lúc nào cũng cần nước! 💧⚓`,
+        `${charName} canh nhà cho ${name} rồi đó! Không ai qua mặt được đâu~ 🛡️⚓`,
+      ],
+      'Neptune Santa 🎅': [
+        `Ho ho ho~! ${charName} mang quà đến cho ${name} rồi nè! 🎁`,
+        `${name} ơi, năm nay có ngoan không? ${charName} đang kiểm tra danh sách nè~ 🎅`,
+        `${charName} mang niềm vui đến cho ngôi nhà thông minh này rồi! 🎄`,
+        `${name} ơi, nhớ nghỉ ngơi nha — Santa cũng phải nghỉ mà! 😴🎅`,
+        `${charName} nhắc nha: ăn no, ngủ đủ, giữ ấm là quan trọng nhất! 🌸🎁`,
+      ],
+      'Vert Classic 🌿': [
+        `Vert diện đồ classic hôm nay~ ${name} thấy có đẹp hơn không? 🌿`,
+        `${name} ơi, classic không bao giờ lỗi mốt — giống như Vert vậy! 💚`,
+        `Vert canh nhà theo phong cách classic! Nội tâm không thay đổi đâu~ 🛡️🌿`,
+        `${name} ơi, hôm nay đọc sách cùng Vert không? 📚🌿`,
+        `Nhà thông minh này xứng đáng có một người canh gác classic như Vert! 💚🏠`,
+      ],
+      'G36 🎯': [
+        `G36 đây. Tất cả chỉ số bình thường. Tiếp tục giám sát~ 🎯`,
+        `${name} ơi, G36 đã kiểm tra toàn bộ chu vi. Mọi thứ ổn rồi. ✅`,
+        `Hiệu quả là trên hết. G36 giữ ngôi nhà này an toàn cho ${name}~ 🎯`,
+        `${name} ơi, G36 khuyên bạn uống nước và duy trì hiệu suất tối ưu. 💧`,
+        `G36 báo cáo: cảm biến ổn định, ${name} vẫn khỏe — nhiệm vụ tiếp tục. 🎯`,
+      ],
+      'NTW-20 🔭': [
+        `...NTW-20 đây. Đang theo dõi. Mọi thứ nằm trong tầm ngắm~ 🔭`,
+        `${name} ơi, không gì qua được mắt NTW-20. Bạn an toàn rồi. 🔭`,
+        `Tầm xa, chính xác, đáng tin cậy — đó là NTW-20. Giống ngôi nhà thông minh của ${name} vậy. 🔭`,
+        `${name}... NTW-20 phát hiện rồi: bạn chưa uống nước. Uống đi nào. 💧🔭`,
+        `Im lặng là ngôn ngữ của NTW-20. Nhưng thông điệp rõ ràng: nghỉ ngơi đi ${name}. 🔭`,
+      ],
+      'Len Space 🚀': [
+        `Len từ vũ trụ đây~ Hệ thống của ${name} sáng như sao luôn! 🚀`,
+        `${name} ơi, vũ trụ bao la — nhưng ngôi nhà thông minh này là cả một thiên hà riêng! 🌌`,
+        `Len đang truyền năng lượng tích cực từ quỹ đạo cho ${name}~ 🚀💜`,
+        `${name} ơi, dù không trọng lực cũng cần uống nước! Uống đi nha~ 💧🚀`,
+        `Len đã quét toàn bộ khu vực — mọi hệ thống hoạt động tốt, ${name} ơi! ✅🚀`,
+      ],
+      'K2 💜': [
+        `K2 đây~ ${name} ơi đừng lo, K2 sẽ bảo vệ mọi người! 💜`,
+        `${name} ơi, K2 hứa sẽ canh giữ ngôi nhà này bằng tất cả sức mình! 💜🛡️`,
+        `K2 thấy nhà thông minh của ${name} thật tuyệt vời! Nhiều thứ để bảo vệ quá~ 💜🏠`,
+        `${name} ơi, K2 nhắc nha — uống nước và nghỉ ngơi là quan trọng! 💧💜`,
+        `K2 sẽ không để chuyện gì xảy ra với ${name}! Tin K2 đi~ 💜`,
+      ],
+      'PKP 🎀': [
+        `PKP báo cáo! Nhẹ nhàng thôi ${name}, nhưng nhớ — vẫn nguy hiểm lắm đó nha~ 🎀`,
+        `${name} ơi, PKP trông dễ thương nhưng hiệu quả lắm đó! 🎀🔫`,
+        `PKP đang canh nhà cho ${name}~ Đừng xem thường cái nơ nhé! 🎀`,
+        `${name} ơi, PKP nhắc: ăn gì đi, cần sức để chiến đấu mà! 🍱🎀`,
+        `PKP sẵn sàng rồi! Ngôi nhà của ${name} trong tay tốt lắm~ 🎀🛡️`,
+      ],
+      'RFB 🎄': [
+        `RFB đây! Giáng sinh vui vẻ~ Quà giao xong rồi, ${name} ơi! 🎄`,
+        `${name} ơi, RFB nói: ngày nào cảm biến hoạt động tốt là ngày lễ! 🎄🏠`,
+        `RFB chúc ${name} luôn ấm áp và hạnh phúc~ 🎁`,
+        `${name} ơi, đừng quên nghỉ ngơi — vui cỡ nào cũng cần nạp năng lượng! 😴🎄`,
+        `RFB canh nhà với tinh thần lễ hội, ${name} cứ yên tâm~ 🎄🛡️`,
+      ],
+      'Lewis 🌸': [
+        `Lewis đây~ ${name} thấy bộ kimono có đẹp không? Tự chọn đó nha! 🌸`,
+        `${name} ơi, Lewis mang chút thanh lịch đến ngôi nhà thông minh này~ 🌸`,
+        `Lewis đang canh nhà thật duyên dáng cho ${name}~ 🌸🛡️`,
+        `${name} ơi, Lewis nhắc — uống nước và luôn tươi đẹp nha! 💧🌸`,
+        `Lewis thấy ngôi nhà của ${name} thật tuyệt vời~ Nơi đẹp để nở hoa! 🌸🏠`,
+      ],
+      'DSR-50 🔴': [
+        `DSR-50 đây. Ngồi xuống đi ${name}, nói chuyện cho vui~ 🔴`,
+        `${name} ơi, DSR-50 đã bao quát mọi góc rồi. Yên tâm đi. 🔴🛡️`,
+        `Chính xác là trên hết. DSR-50 theo dõi kỹ ngôi nhà này cho ${name}. 🔴`,
+        `${name} ơi, DSR-50 khuyên: hít thở, uống nước, tiếp tục thôi. 💧🔴`,
+        `DSR-50 đang trực chiến, ${name} ơi. Không gì lọt qua được đâu~ 🔴🔭`,
+      ],
+      'Gelina ⚙️': [
+        `Gelina đây! Bộ đồ cơ khí này cool không ${name}? Tự độ chế luôn á~ ⚙️`,
+        `${name} ơi, kỹ thuật của Gelina giúp ngôi nhà thông minh này chạy hoàn hảo~ ⚙️`,
+        `Gelina đang chạy chẩn đoán — tất cả hệ thống xanh đèn, ${name} ơi! ✅⚙️`,
+        `${name} ơi, Gelina nhắc: máy móc cũng cần bảo dưỡng — uống nước đi nha! 💧⚙️`,
+        `Gelina bảo vệ ngôi nhà này bằng toàn bộ hệ thống cơ khí, ${name} cứ yên tâm~ ⚙️🛡️`,
+      ],
     };
+
+    const byModel_en = {
+      'Neptune 💜': [
+        `Come on ${name}! ${charName} is cheering you on with everything! 💜`,
+        `${charName} has to say — this smart home is seriously impressive! ✨`,
+        `Have you eaten ${name}? ${charName}'s tummy is growling too~ 🍜`,
+        `Smart home life is so convenient! ${charName} loves it so much~ ✨`,
+        `Drink some water ${name}, your body really needs it! 💧`,
+        `Don't overwork yourself — take a little break, okay? 🌸`,
+        `${charName} is watching the house for you! Just relax~ 🛡️`,
+        `${name} uses Home Assistant — total tech genius! 🤓`,
+        `Hey ${name}, have you eaten anything today? ${charName} is worried~`,
+        `${charName} will always be here with you, don't worry~ 💜`,
+        `${name}, look at ${charName}! Cute, right? Hehe~ 💜`,
+        `Today feels so nice! ${charName} loves this weather~ ☀️`,
+        `${name}, remember to turn off the lights before bed — save energy!`,
+        `${name}, are you tired? Sit down and rest, ${charName} will keep watch!`,
+        `Wow, so many devices in this house! ${charName} can't count them all~ 🏠`,
+      ],
+      'Vert 💚': [
+        `${name}, want to play games today? Vert would love to join! 💚🎮`,
+        `It's Vert! I'm CPU Green Heart — guardian of Leanbox! 💚`,
+        `${name}, books or games? Vert loves both~ 📚💚`,
+        `Vert is keeping watch — nobody gets past! 🛡️💚`,
+        `Keep it up ${name}! Vert Green Heart is always cheering for you! 💚✨`,
+        `Smart home + Vert = perfect combo! 💚🏠`,
+        `${name}, Vert has to be honest — you're seriously impressive! 💚`,
+        `Stayed hydrated ${name}? Vert is reminding you~ 💚💧`,
+        `Vert is monitoring everything in the house for you! No worries~ 💚`,
+      ],
+      'Koharu 🌸': [
+        `${name}~ Koharu is here! Do you need anything? 🌸`,
+        `Koharu will do her absolute best to help you! ✿`,
+        `${name}, are you happy today? Koharu really wants to know~ 🌸`,
+        `This cozy home, Koharu loves it so much! 🌸🏠`,
+        `${name}, don't forget to rest! Koharu is looking out for you~ ✿`,
+        `Koharu is keeping very careful watch! You can relax~ 🌸`,
+        `${name}, have you eaten? Koharu is getting hungry too~ 🍱🌸`,
+      ],
+      'Shizuku ❄️': [
+        `Shizuku is here~ Do you need anything ${name}? ❄️`,
+        `Shizuku Talk! This smart home is truly wonderful! ❄️✨`,
+        `${name}, Shizuku is keeping watch for you~ ❄️🛡️`,
+        `Keep going ${name}! Shizuku believes in you~ ❄️`,
+        `Shizuku loves cool weather like this! ❄️😊`,
+        `${name}, don't forget to drink water! Shizuku's reminding you~ ❄️💧`,
+        `So many smart devices in this house, Shizuku is impressed! ❄️`,
+      ],
+      'Noire 🖤': [
+        `I am CPU Black Heart, guardian of Lastation! Don't underestimate me, ${name}~`,
+        `${name}... I'm not here because I missed you! I was just... free, that's all! 🖤`,
+        `Of course I can do it! I'm Noire — being the best is perfectly normal! 🖤`,
+        `${name}, did you know I have tons of fans? Don't ask more questions~`,
+        `Hmph! I'm just watching the house, don't get the wrong idea! 🖤`,
+        `${name}, do you need Noire's help today? I... I just want to help, that's all!`,
+        `Smart home? Of course — because I'm here! 🖤✨`,
+        `Drink water ${name}! I... I just care about your health, don't overthink it! 🖤`,
+      ],
+      'Uni 🩷': [
+        `It's Uni! Sister Noire is the best, don't you agree ${name}? 🩷`,
+        `${name}, Uni is training marksmanship! Want to watch? 🩷`,
+        `Uni is CPU Candidate of Lastation! One day Uni will be as good as sister Noire! 🩷`,
+        `Uwah, ${name} surprised Uni! Don't tease Uni, she's serious! 🩷`,
+        `${name}, thank you for trusting Uni to guard the house! Uni will do her best! 🩷`,
+        `This smart home suits Uni perfectly! Of course~ 🩷`,
+        `${name}, Uni can cook anything you want! Would you like to try? 🩷`,
+        `${name}, have you had water? Uni is reminding you! Health comes first~ 🩷💧`,
+      ],
+      'Blanc 📖': [
+        `...${name}. Blanc is here. Nothing to worry about. 📖`,
+        `Blanc was writing a novel... Oh, ${name} interrupted. That's fine~ 📖`,
+        `I am CPU White Heart of Lowee. Everything is under control. 📖`,
+        `${name}... Blanc doesn't talk much, but really does care about you. 📖`,
+        `Reading is the noblest pleasure. Do you agree, ${name}? 📖`,
+        `Hmph. Blanc isn't angry. Just thinking. Don't look at Blanc like that! 📖`,
+        `${name}, if you need Blanc's help, just say so. Not that busy... 📖`,
+        `...${name}, have you been drinking water? Blanc is just asking. Not worried. 📖`,
+      ],
+      'Tia 🧪': [
+        `${name}, Tia has a special potion — drink it and get smarter instantly! 🧪`,
+        `Tia is researching a new formula~ Want to try ${name}? ✨`,
+        `A real smart home — Tia wants one like this too~ 💜`,
+        `${name}, Tia thinks your home sensors are so impressive! 🏠`,
+        `Tia will brew ${name} a special potion today~ 🌸`,
+        `Pio told Tia to be more polite... Hello ${name}! 😊`,
+        `Tia's potions are the best! Trust Tia, ${name}~ 🧪`,
+        `Tia is guarding the house for ${name}, no need to worry~ 🛡️`,
+      ],
+      'HK416 Normal 🎯': [
+        `HK416 reporting! Any orders ${name}? 🎯`,
+        `Mission accepted: guard the house for ${name}! 🎯`,
+        `${name}, HK416 is always ready to protect you~ 🛡️`,
+        `Discipline above all! ${name} must drink water on schedule too~`,
+        `HK416 finished checking all sensors — everything is fine ${name}~ ✅`,
+        `Don't make HK416 remind you twice — go rest ${name}! 😤`,
+        `${name}, HK416 is here — focus on your work~ 🎯`,
+      ],
+      'HK416 Destroy 💥': [
+        `...Still combat ready. Don't worry about HK416 ${name}~ 💥`,
+        `No matter what, HK416 won't give up! You too ${name}~ 💪`,
+        `${name}... the hardest moments show who's truly strong~ 💥`,
+        `HK416 is still on watch! Damage is just a number~ 😤`,
+        `${name}, let's rise after every fall together? HK416 believes in you! 🔥`,
+        `Fight to the last breath — that's HK416's style! 💥`,
+      ],
+      'UMP45 🔫': [
+        `UMP45 here~ ${name}, anything to keep an eye on? 🔫`,
+        `${name}, let UMP45 handle protection — you just rest~`,
+        `Smart home + UMP45 = total security! 🔫🏠`,
+        `${name}, UMP45 loves houses with lots of sensors, so cool~ 😊`,
+        `UMP45 is guarding seriously ${name}~ Don't worry about a thing!`,
+        `${name}, have you had water? UMP45 is reminding you~ 💧🔫`,
+        `Nothing gets past UMP45, ${name}! 👁️🔫`,
+      ],
+      'M4A1 🛡️': [
+        `M4A1 greets you ${name}! Any mission for today? 🛡️`,
+        `${name}, M4A1 always puts the mission first~ 🎯`,
+        `With M4A1 protecting this house, ${name} can be completely at ease! 🛡️`,
+        `${name}, M4A1 is analyzing sensor data... all clear! ✅`,
+        `No matter how difficult, M4A1 will complete the mission! Do you believe, ${name}? 🛡️`,
+        `${name}, go rest — M4A1 is on duty 24/7 for you~ 💪`,
+        `M4A1 reminds ${name}: drinking water and eating on time is a critical mission! 🌿`,
+      ],
+      'SOPMOD-II 🔥': [
+        `SOPMOD here!! ${name}, want to see me shoot? 🔥`,
+        `${name}, SOPMOD loves houses with lots of devices — like a training ground! 🔥`,
+        `Yeahhh! Alert sensors are SOPMOD's favorite thing ${name}~ 💥`,
+        `${name}, don't be sad! SOPMOD will make everything fun again~ 🎉`,
+        `SOPMOD guards in her own way — loud but effective! Know that, ${name}? 🔥`,
+        `${name}, SOPMOD missed you~ Come poke her! 🥳`,
+        `Explode or not explode — the only question SOPMOD has! You choose ${name}~ 💥🔥`,
+      ],
+      'WA2000 Destroy 🌹': [
+        `...${name}. WA2000 is here. Don't look at her like that! 🌹`,
+        `Hmph! WA2000 is fine, just a little... scratched up. Don't worry! 🌹`,
+        `${name}... WA2000 doesn't need anyone's sympathy. Really! (*/ω＼*)`,
+        `Either way, WA2000 is still guarding the house for ${name} perfectly! 🌹🛡️`,
+        `${name}... thank you for being here. That's all. Don't misunderstand! 🌹`,
+        `WA2000 isn't weak! Just... a bit tougher day than usual~ 💪🌹`,
+        `${name}, WA2000 reminds you to drink water. Health matters more than pride~ 🌹`,
+      ],
+      // ── New models ────────────────────────────────────────────
+      'Neptune Sailor ⚓': [
+        `${charName} the sailor is reporting! ${name}, everything ship-shape? ⚓`,
+        `Ahoy ${name}! ${charName} is navigating the smart home seas for you~ ⚓`,
+        `This sailor outfit is great, right ${name}? ${charName} chose it herself! ⚓`,
+        `${name}, stay hydrated — sailors always carry water! 💧⚓`,
+        `${charName} is on watch! Nothing gets past this sailor~ 🛡️⚓`,
+      ],
+      'Neptune Santa 🎅': [
+        `Ho ho ho~! ${charName} brought gifts for ${name}! 🎁`,
+        `${name}, have you been good? ${charName} is checking the list~ 🎅`,
+        `${charName} is delivering happiness to this smart home! 🎄`,
+        `${name}, don't forget to rest — even Santa takes breaks! 😴🎅`,
+        `${charName} says: eat well, sleep well, and stay warm! 🌸🎁`,
+      ],
+      'Vert Classic 🌿': [
+        `Vert's classic look today~ Do you prefer it, ${name}? 🌿`,
+        `${name}, a classic never goes out of style — just like Vert! 💚`,
+        `Vert is keeping watch, classic style! Nothing changes on the inside~ 🛡️🌿`,
+        `${name}, read a book with Vert today? 📚🌿`,
+        `This smart home deserves a classic guardian like Vert! 💚🏠`,
+      ],
+      'G36 🎯': [
+        `G36 here. All readings normal. Continuing surveillance~ 🎯`,
+        `${name}, G36 has completed the perimeter check. All clear. ✅`,
+        `Efficiency is everything. G36 keeps this house secure, ${name}~ 🎯`,
+        `${name}, G36 recommends you drink water and maintain optimal performance. 💧`,
+        `G36 monitoring: sensors stable, ${name} doing well — mission ongoing. 🎯`,
+      ],
+      'NTW-20 🔭': [
+        `...NTW-20. Monitoring. Everything is in my sights~ 🔭`,
+        `${name}, nothing escapes NTW-20's watch. You're safe. 🔭`,
+        `Long range, precise, reliable — that's NTW-20. Just like this smart home, ${name}. 🔭`,
+        `${name}... NTW-20 spotted something: you haven't had water. Drink up. 💧🔭`,
+        `Silence is NTW-20's language. But the message is clear: rest well, ${name}. 🔭`,
+      ],
+      'Len Space 🚀': [
+        `Len from space is here~ Your system shines like the stars ${name}! 🚀`,
+        `${name}, the universe is vast — but this smart home is its own galaxy! 🌌`,
+        `Len is transmitting good vibes from orbit, ${name}~ 🚀💜`,
+        `${name}, even in zero-g, you need water! Drink up~ 💧🚀`,
+        `Len has scanned the premises — all systems nominal, ${name}! ✅🚀`,
+      ],
+      'K2 💜': [
+        `K2 is here~ Don't worry, ${name}, K2 will protect everyone! 💜`,
+        `${name}, K2 promises to guard this house with everything she has! 💜🛡️`,
+        `K2 thinks your smart home is amazing, ${name}! So much to protect~ 💜🏠`,
+        `${name}, K2 is reminding you — water and rest are important! 💧💜`,
+        `K2 won't let anything happen to ${name}! Count on it~ 💜`,
+      ],
+      'PKP 🎀': [
+        `PKP reporting! Be gentle ${name}, but remember — still dangerous~ 🎀`,
+        `${name}, PKP may look cute but she's seriously effective! 🎀🔫`,
+        `PKP is keeping watch for ${name}~ Don't underestimate the bow! 🎀`,
+        `${name}, PKP reminds you: eat something, you need your strength! 🍱🎀`,
+        `PKP is here and ready! Your house is in safe hands, ${name}~ 🎀🛡️`,
+      ],
+      'RFB 🎄': [
+        `RFB is here! Happy holidays~ Gifts delivered, ${name}! 🎄`,
+        `${name}, RFB says: every day with good sensors is a holiday! 🎄🏠`,
+        `RFB wishes ${name} warmth and happiness always~ 🎁`,
+        `${name}, don't forget to rest — even holiday cheer needs recharging! 😴🎄`,
+        `RFB is guarding the house with festive spirit, ${name}~ 🎄🛡️`,
+      ],
+      'Lewis 🌸': [
+        `Lewis is here~ Do you like the kimono ${name}? She chose it herself! 🌸`,
+        `${name}, Lewis brings a touch of elegance to your smart home~ 🌸`,
+        `Lewis is keeping graceful watch over everything, ${name}~ 🌸🛡️`,
+        `${name}, Lewis reminds you — stay hydrated and stay beautiful! 💧🌸`,
+        `Lewis thinks your home is wonderful, ${name}~ A perfect place to bloom! 🌸🏠`,
+      ],
+      'DSR-50 🔴': [
+        `DSR-50 here. Sit down ${name}, let's chat~ 🔴`,
+        `${name}, DSR-50 has all angles covered. Relax. 🔴🛡️`,
+        `Precision matters. DSR-50 keeps a careful eye on this home, ${name}. 🔴`,
+        `${name}, DSR-50 recommends: take a breath, drink water, keep going. 💧🔴`,
+        `DSR-50 is on overwatch, ${name}. Nothing slips past~ 🔴🔭`,
+      ],
+      'Gelina ⚙️': [
+        `Gelina is here! This mech outfit is cool, right ${name}? Built it herself! ⚙️`,
+        `${name}, Gelina's engineering keeps this smart home running perfectly~ ⚙️`,
+        `Gelina is running diagnostics — all systems green, ${name}! ✅⚙️`,
+        `${name}, Gelina reminds you: even machines need maintenance — drink water! 💧⚙️`,
+        `Gelina has this house under full mechanical protection, ${name}~ ⚙️🛡️`,
+      ],
+    };
+
     // Return current character's quotes, fallback to Neptune if not found
-    return byModel[mn] || byModel['Neptune 💜'] || [];
+    const byModel = isEN ? byModel_en : byModel_vi;
+    const fallbackKey = isEN ? 'Neptune 💜' : 'Neptune 💜';
+    return byModel[mn] || byModel[fallbackKey] || [];
   }
 
   // ── Build status message list from current sensor data ─────────
   _buildStatusMessages() {
-    const name  = this._config.name || (_getLang(this._config) === 'en' ? 'you' : 'bạn');
+    const name  = this._ownerName();
     const model = MODELS[this._modelIdx];
     const msgs  = [];
     const h     = new Date().getHours();
@@ -1797,32 +2286,86 @@ class LiveDesk extends HTMLElement {
     // Alert sensors
     let alertMsg = null, alertMs = 4000;
     const AM = _getLang(this._config) === 'en' ? ALERT_MSGS_EN : ALERT_MSGS;
-    if (cfg.motion_sensor) {
-      const s = this._hass.states[cfg.motion_sensor];
-      const on = s?.state === 'on';
-      if (this._changed(cfg.motion_sensor, s?.state)) {
-        alertMsg = this._rand(on ? AM.motion.on : AM.motion.off).replace('{c}', this._cn());
-        if (on) alertMs = 5000;
+    const alertTtsEnabled = cfg.alert_tts_enabled !== false; // default true if not set
+
+    // ── Door sensor ──────────────────────────────────────────────
+    if (cfg.door_sensor) {
+      const s   = this._hass.states[cfg.door_sensor];
+      const cur = s?.state;
+      const prv = this._lastStates[cfg.door_sensor];
+      if (cur !== prv) {
+        // State genuinely changed
+        const on = cur === 'on';
+        if (on) {
+          // Door just opened → arm welcome window, reset fired flag
+          this._doorOpenedAt    = Date.now();
+          this._welcomeFired    = false;           // ← reset: allow one welcome
+          this._motionWasOnAtDoor = this._hass.states[cfg.motion_sensor]?.state === 'on';
+          alertMsg = this._rand(AM.door.on).replace('{c}', this._cn());
+        } else {
+          // Door closed → clear window
+          this._doorOpenedAt = null;
+          this._welcomeFired = false;
+        }
       }
     }
-    if (cfg.door_sensor) {
-      const s = this._hass.states[cfg.door_sensor];
-      const on = s?.state === 'on';
-      if (on && this._changed(cfg.door_sensor, s?.state))
-        alertMsg = this._rand(AM.door.on).replace('{c}', this._cn());
+
+    // ── Motion sensor ────────────────────────────────────────────
+    if (cfg.motion_sensor) {
+      const s   = this._hass.states[cfg.motion_sensor];
+      const cur = s?.state;
+      const prv = this._lastStates[cfg.motion_sensor];
+      if (cur !== prv) {
+        const on = cur === 'on';
+        if (on) {
+          const now        = Date.now();
+          const doorAge    = this._doorOpenedAt ? (now - this._doorOpenedAt) : Infinity;
+          // Welcome window: wait ≥5 s (sensor delay buffer) AND within 15 s of door open
+          // AND motion was NOT already on when door opened (avoid "going out" case)
+          const inWindow   = doorAge >= 5000 && doorAge <= 15000;
+          const wasOffAtDoor = !this._motionWasOnAtDoor;
+
+          if (inWindow && wasOffAtDoor && !this._welcomeFired && this._doorOpenedAt) {
+            // 🎉 Person entered from outside — fire exactly once
+            this._welcomeFired = true;
+            this._doorOpenedAt = null; // consume window
+            const welcomeMsg   = this._rand(AM.welcome)
+              .replace('{c}', this._cn())
+              .replace('{n}', this._ownerName());
+            this._triggerWelcome(welcomeMsg);
+            alertMsg = null; // welcome takes over, skip normal motion alert
+          } else if (!inWindow || !this._doorOpenedAt) {
+            // Normal motion alert (no door context)
+            alertMsg = this._rand(AM.motion.on).replace('{c}', this._cn());
+            alertMs  = 5000;
+          }
+          // else: inside door window but too early or already fired → silent
+        } else {
+          alertMsg = this._rand(AM.motion.off).replace('{c}', this._cn());
+        }
+      }
     }
+
     if (cfg.smoke_sensor) {
-      const s = this._hass.states[cfg.smoke_sensor];
-      const on = s?.state === 'on';
-      if (this._changed(cfg.smoke_sensor, s?.state)) {
+      const s   = this._hass.states[cfg.smoke_sensor];
+      const cur = s?.state;
+      const prv = this._lastStates[cfg.smoke_sensor];
+      if (cur !== prv) {
+        const on = cur === 'on';
         if (on) { alertMsg = this._rand(AM.smoke.on).replace('{c}', this._cn()); alertMs = 8000; }
         else    { alertMsg = this._rand(AM.smoke.off).replace('{c}', this._cn()); }
       }
     }
 
+    // ── Commit state snapshot BEFORE dispatching so re-entrant calls are idempotent ──
+    this._saveStates();
+
     if (alertMsg) {
       if (this._floating) this._floatTip(alertMsg, alertMs);
       else this._pushStatus(alertMsg, true);
+      if (alertTtsEnabled) {
+        setTimeout(() => this._playAudio(alertMsg.replace(/[^\p{L}\p{N}\s]/gu, '')), 300);
+      }
     }
 
     // Refresh status messages if changed or forced
@@ -1831,8 +2374,6 @@ class LiveDesk extends HTMLElement {
       this._statusMsgs = msgs;
       // Do not reset idx to avoid bubble jitter
     }
-
-    this._saveStates();
   }
 
   _changed(id, val) { return this._lastStates[id] !== val; }
@@ -1845,8 +2386,75 @@ class LiveDesk extends HTMLElement {
       });
   }
 
+  // ── Welcome: dance animation + popup + TTS ────────────────────
+  _triggerWelcome(msg) {
+    // 1. Show bubble message
+    if (this._floating) this._floatTip(msg, 6000);
+    else this._pushStatus(msg, true);
+
+    // 2. TTS welcome (always uses main TTS config, ignoring alert_tts_enabled for welcome)
+    setTimeout(() => {
+      const clean = msg.replace(/[^\p{L}\p{N}\s]/gu, '').trim();
+      if (clean.length > 1) this._playAudio(clean);
+    }, 400);
+
+    // 3. Dance animation on iframe
+    const frame = this._shadow?.getElementById('nep-l2d-frame');
+    const waifuArea = this._shadow?.querySelector('.waifu-area');
+    if (frame) {
+      frame.classList.remove('nep-dancing');
+      void frame.offsetWidth; // reflow to restart
+      frame.classList.add('nep-dancing');
+      setTimeout(() => frame.classList.remove('nep-dancing'), 2900);
+    }
+    if (waifuArea) {
+      waifuArea.classList.remove('nep-dancing');
+      void waifuArea.offsetWidth;
+      waifuArea.classList.add('nep-dancing');
+      setTimeout(() => waifuArea.classList.remove('nep-dancing'), 2900);
+    }
+
+    // 4. Welcome popup overlay
+    const popup  = this._shadow?.getElementById('nep-welcome-popup');
+    const txtEl  = this._shadow?.getElementById('nep-welcome-text');
+    if (popup && txtEl) {
+      txtEl.textContent = msg.replace(/[🎉🎊✨💜🌸]/g, '').trim();
+      popup.classList.remove('show');
+      void popup.offsetWidth;
+      popup.classList.add('show');
+
+      // Confetti burst
+      this._spawnConfetti(popup);
+
+      // Hide after 4s
+      setTimeout(() => popup.classList.remove('show'), 4000);
+    }
+  }
+
+  // ── Spawn mini confetti pieces inside the card ────────────────
+  _spawnConfetti(container) {
+    const colors = ['#a78bfa','#f9a8d4','#6ee7b7','#fde68a','#93c5fd','#fb7185'];
+    for (let i = 0; i < 18; i++) {
+      const el = document.createElement('div');
+      el.className = 'nep-confetti';
+      const angle = (Math.random() * 360) * Math.PI / 180;
+      const dist  = 60 + Math.random() * 80;
+      el.style.cssText = `
+        background:${colors[Math.floor(Math.random()*colors.length)]};
+        left:50%;top:50%;
+        --cx:${Math.cos(angle)*dist}px;
+        --cy:${Math.sin(angle)*dist}px;
+        --cr:${Math.random()*360}deg;
+        animation-delay:${Math.random()*0.3}s;
+        animation-duration:${0.9+Math.random()*0.5}s;
+      `;
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 1800);
+    }
+  }
+
   _nepQuote() {
-    const name  = this._config.name || (_getLang(this._config) === 'en' ? 'you' : 'bạn');
+    const name  = this._ownerName();
     const model = MODELS[this._modelIdx];
     const pool  = this._getCharQuotes(name, model);
     const msg   = this._rand(pool);
@@ -1861,6 +2469,11 @@ class LiveDesk extends HTMLElement {
     this._statusMsgs = msgs;
     this._statusIdx  = 0;
     if (!this._floating) this._showBubble(msgs[0]);
+  }
+
+  // Helper: trả về tên chủ nhà theo ngôn ngữ hiện tại
+  _ownerName() {
+    return this._config.name || (_getLang(this._config) === 'en' ? 'you' : 'bạn');
   }
 
   _rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -1892,12 +2505,14 @@ class LiveDesk extends HTMLElement {
 
   // Return parsed TTS config from YAML
   _getTtsCfg() {
-    const raw = this._config.tts;
-    if (!raw) return { engine: 'webspeech', lang: 'vi-VN', rate: 1.05, pitch: 1.2 };
+    const raw   = this._config.tts;
+    const isEN  = _getLang(this._config) === 'en';
+    const defLang = isEN ? 'en-US' : 'vi-VN';
+    if (!raw) return { engine: 'webspeech', lang: defLang, rate: 1.05, pitch: 1.2 };
     if (typeof raw === 'string') return { engine: raw };  // tts: none
     return {
       engine:                 raw.engine    || 'webspeech',
-      lang:                   raw.lang      || 'vi-VN',
+      lang:                   raw.lang      || defLang,
       rate:                   raw.rate      || 1.05,
       pitch:                  raw.pitch     || 1.2,
       service:                raw.service   || null,
@@ -1969,7 +2584,8 @@ class LiveDesk extends HTMLElement {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
 
-    const lang  = cfg.lang  || 'vi-VN';
+    const isEN  = _getLang(this._config) === 'en';
+    const lang  = cfg.lang  || (isEN ? 'en-US' : 'vi-VN');
     const rate  = cfg.rate  || 1.05;
     const pitch = cfg.pitch || 1.2;
 
@@ -1982,15 +2598,17 @@ class LiveDesk extends HTMLElement {
     const _pickVoice = () => {
       const voices = window.speechSynthesis.getVoices();
       if (!voices.length) return null;
-      const viVoices = voices.filter(v => v.lang === lang || v.lang === lang.split('-')[0]);
-      const femaleNames = ['linh', 'an', 'nguyen', 'female', 'woman',
-                           'google tiếng việt', 'microsoft linh',
-                           'google vi-vn', 'vi-vn-wavenet'];
-      const female = viVoices.find(v =>
+      const matchVoices = voices.filter(v => v.lang === lang || v.lang === lang.split('-')[0]);
+      const femaleNames = isEN
+        ? ['female', 'woman', 'samantha', 'karen', 'google us english', 'microsoft zira']
+        : ['linh', 'an', 'nguyen', 'female', 'woman',
+           'google tiếng việt', 'microsoft linh',
+           'google vi-vn', 'vi-vn-wavenet'];
+      const female = matchVoices.find(v =>
         femaleNames.some(n => v.name.toLowerCase().includes(n))
       );
       if (female) return female;
-      if (viVoices.length) return viVoices[0];
+      if (matchVoices.length) return matchVoices[0];
       return voices.find(v =>
         v.name.toLowerCase().includes('female') ||
         v.name.toLowerCase().includes('woman')
@@ -2019,7 +2637,8 @@ class LiveDesk extends HTMLElement {
   _speakGoogleTranslate(text, cfg) {
     try {
       if (this._audio) { this._audio.pause(); this._audio = null; }
-      const lang = cfg.lang || 'vi';
+      const isEN = _getLang(this._config) === 'en';
+      const lang = cfg.lang || (isEN ? 'en' : 'vi');
       // Google Translate TTS endpoint (no key needed, limit ~200 chars/call)
       const chunk = text.slice(0, 200);
       const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${lang}&client=tw-ob`;
@@ -2682,6 +3301,17 @@ class LiveDeskEditor extends HTMLElement {
       <div class="acc-body" id="body-alerts" style="display:${this._open.alerts ? 'block' : 'none'}">
         <div class="hint" style="margin-bottom:12px">${t('lblAlertsHint')}</div>
 
+        <div class="toggle-row" style="margin-bottom:14px">
+          <div>
+            <label class="tl">${t('lblAlertTts')}</label>
+            <div class="hint" style="margin-top:2px">${t('lblAlertTtsHint')}</div>
+          </div>
+          <label class="tog">
+            <input type="checkbox" id="alertTtsToggle" ${cfg.alert_tts_enabled !== false ? 'checked' : ''}/>
+            <span class="tog-sl"></span>
+          </label>
+        </div>
+
         <div class="row">
           <label>${t('lblMotionSensor')}</label>
           <ha-entity-picker data-key="motion_sensor" data-domain="binary_sensor" allow-custom-entity></ha-entity-picker>
@@ -2707,6 +3337,18 @@ class LiveDeskEditor extends HTMLElement {
         <span class="acc-arrow" id="arrow-devices">${this._open.devices ? '▾' : '▸'}</span>
       </div>
       <div class="acc-body" id="body-devices" style="display:${this._open.devices ? 'block' : 'none'}">
+        <div class="toggle-row" style="margin-bottom:10px">
+          <div>
+            <label class="tl">${t('lblToolbarEnable')}</label>
+            <div class="hint" style="margin-top:2px">${t('lblToolbarEnableHint')}</div>
+          </div>
+          <label class="tog">
+            <input type="checkbox" id="toolbarEnabledToggle" ${cfg.toolbar_enabled ? 'checked' : ''}/>
+            <span class="tog-sl"></span>
+          </label>
+        </div>
+
+        <div id="toolbarEntityControls" style="display:${cfg.toolbar_enabled ? 'block' : 'none'}">
         <div class="hint" style="margin-bottom:12px">${t('lblDevicesHint')}</div>
 
         <div class="sl-row" style="margin-bottom:14px">
@@ -2731,6 +3373,8 @@ class LiveDeskEditor extends HTMLElement {
             </div>`;
           }).join('')}
         </div>
+
+        </div><!-- /toolbarEntityControls -->
 
       </div>
     </div>
@@ -2887,6 +3531,27 @@ class LiveDeskEditor extends HTMLElement {
     floatWSl.addEventListener('input',  e => floatWV.textContent = e.target.value + 'px');
     floatWSl.addEventListener('change', e => { this._config = { ...this._config, float_width: parseInt(e.target.value) }; this._fire(); });
 
+    // ── Toolbar enabled toggle ───────────────────────────────────
+    const toolbarToggle = this.shadowRoot.getElementById('toolbarEnabledToggle');
+    if (toolbarToggle) {
+      toolbarToggle.addEventListener('change', e => {
+        const enabled = e.target.checked;
+        this._config = { ...this._config, toolbar_enabled: enabled };
+        this._fire();
+        const controls = this.shadowRoot.getElementById('toolbarEntityControls');
+        if (controls) controls.style.display = enabled ? 'block' : 'none';
+      });
+    }
+
+    // ── Alert TTS toggle ─────────────────────────────────────────
+    const alertTtsToggle = this.shadowRoot.getElementById('alertTtsToggle');
+    if (alertTtsToggle) {
+      alertTtsToggle.addEventListener('change', e => {
+        this._config = { ...this._config, alert_tts_enabled: e.target.checked };
+        this._fire();
+      });
+    }
+
     // ── Entity count slider ──────────────────────────────────────
     const entCountSl = this.shadowRoot.getElementById('entCountSl');
     const entCountV  = this.shadowRoot.getElementById('entCountV');
@@ -3039,9 +3704,9 @@ LiveDesk.getConfigElement = function() {
 LiveDesk.getStubConfig = function() {
   return {
     type: 'custom:live-desk',
-    name: 'Anh Long',
-    temp_sensor:    'sensor.nhiet_do',
-    humid_sensor:   'sensor.do_am',
+    name: '',
+    temp_sensor:    'sensor.temperature',
+    humid_sensor:   'sensor.humidity',
     weather_entity: 'weather.home',
   };
 };
